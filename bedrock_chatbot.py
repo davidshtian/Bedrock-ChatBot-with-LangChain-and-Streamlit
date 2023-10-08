@@ -15,12 +15,12 @@ Assistant:"""
 CLAUDE_PROMPT = PromptTemplate(
     input_variables=["history", "input"], template=DEFAULT_CLAUDE_TEMPLATE)
 
-INIT_MESSAGE = {"role": "assistant", "content": "How may I help you?"}
+INIT_MESSAGE = {"role": "assistant", "content": "Hi! I'm Claude on Bedrock. How may I help you?"}
 
 
 # Set Streamlit page configuration
 st.set_page_config(page_title='🤖 Chat with Bedrock', layout='wide')
-st.title("🤖 Bedrock Chat App")
+st.title("🤖 Chat with Bedrock")
 
 # Sidebar info
 with st.sidebar:
