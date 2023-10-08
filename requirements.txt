@@ -1,0 +1,2 @@
+langchain==0.0.310
+streamlit==1.27.2
