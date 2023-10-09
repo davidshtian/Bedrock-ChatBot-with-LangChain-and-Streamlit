@@ -99,7 +99,7 @@ if prompt:
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        print(st.session_state.messages)
+        # print(st.session_state.messages)
         with st.spinner("Thinking..."):
             response = generate_response(conv_chain, prompt)
             st.markdown(response)
