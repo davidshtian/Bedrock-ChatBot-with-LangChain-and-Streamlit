@@ -4,7 +4,7 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.prompt import PromptTemplate
 from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
-from streamlit_callback_handler import StreamlitCallbackHandler
+from langchain.callbacks.base import BaseCallbackHandler
 
 
 DEFAULT_CLAUDE_TEMPLATE = """The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
@@ -19,6 +19,16 @@ CLAUDE_PROMPT = PromptTemplate(
 
 INIT_MESSAGE = {"role": "assistant",
                 "content": "Hi! I'm Claude on Bedrock. How may I help you?"}
+
+
+class StreamHandler(BaseCallbackHandler):
+    def __init__(self, container):
+        self.container = container
+        self.text = ""
+
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.text += token
+        self.container.markdown(self.text)
 
 
 # Set Streamlit page configuration
@@ -70,7 +80,7 @@ def init_conversationchain() -> ConversationChain:
 
 
 def generate_response(conversation, input_text):
-    return conversation.run(input=input_text, callbacks=[StreamlitCallbackHandler(st.container())])
+    return conversation.run(input=input_text, callbacks=[StreamHandler(st.empty())])
 
 
 # Re-initialize the chat
@@ -106,4 +116,3 @@ if st.session_state.messages[-1]["role"] != "assistant":
         response = generate_response(conv_chain, prompt)
     message = {"role": "assistant", "content": response}
     st.session_state.messages.append(message)
-  
