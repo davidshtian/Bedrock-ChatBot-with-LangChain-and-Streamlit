@@ -1,3 +1,17 @@
+# 24/03/08 Updates
+**NEW! Claude 3 Sonnet on Bedrock Supported~**
+
+Extra action needed (till now) - install langchain from source:
+```
+git clone https://github.com/langchain-ai/langchain.git
+pip install -e langchain/libs/langchain
+```
+
+Then run the command:
+```
+streamlit run bedrock_chatbot_claude_3_sonnet.py
+```
+
 # Bedrock ChatBot with LangChain and Streamlit 💬 
 A simple and clear example for implement a chatbot with Bedrock(Claude) + LangChain + Streamlit. Just `cd` to the corresponding folder and run the code:
 ```
