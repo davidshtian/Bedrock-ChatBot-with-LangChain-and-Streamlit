@@ -1,11 +1,13 @@
 # 24/03/08 Updates
-**NEW! Claude 3 Sonnet on Bedrock Supported~**
+**NEW! Claude 3 Sonnet on Bedrock Supported~ Message API**
 
 Extra action needed (till now) - install langchain from source:
 ```
 git clone https://github.com/langchain-ai/langchain.git
 pip install -e langchain/libs/langchain
 ```
+
+> Note: Only text supported now, vision later!
 
 Then run the command:
 ```
