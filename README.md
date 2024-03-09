@@ -1,3 +1,22 @@
+# 24/03/09 Updates
+**NEW! Claude 3 Sonnet on Bedrock Supported~ Message API Plus Vision Multimodal!** 🎉🎉🎉
+
+Extra action needed (till now) - install langchain from source.
+
+> Note: A little bit [hack](https://github.com/langchain-ai/langchain/commit/a0d1614159b268f218e470c803d5288a60fa8ab2) for streamlit conversation history format mismatch, and modify langchain community bedrock source code, no impact on BedrockChat invoke ~ 
+```
+git clone https://github.com/davidshtian/langchain.git
+pip install -e langchain/libs/langchain
+```
+
+Then run the command:
+```
+streamlit run bedrock_chatbot_claude_3_sonnet_vision.py
+```
+Bingo!
+<img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/577fc5e8-e0f2-46a7-b7fd-3ec33b918ff6">
+
+
 # 24/03/08 Updates
 **NEW! Claude 3 Sonnet on Bedrock Supported~ Message API**
 
