@@ -14,6 +14,7 @@ Then run the command:
 streamlit run bedrock_chatbot_claude_3_sonnet_vision.py
 ```
 Bingo!
+<img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/1f380628-1353-4fa4-8459-a713c6a03454">
 
 > Note: Some details like - smooth history catchup with new message api, support mulitple images in one chat, image keep in the thumbnail in one line, multimodal and text-only mixed chat, no some bump up after rerun and re-initialize, fix lots of format mismatch...
 
