@@ -1,3 +1,11 @@
+# 24/03/11 Updates
+**NEW! Claude 3 Sonnet on Bedrock Supported! New Message API Plus Vision Multimodal Chat!** 🎉🎉🎉
+
+Add system prompt option.
+
+<img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/fe6c7aea-1275-48ee-b05f-3a4e3c9f7325">
+
+
 # 24/03/10 Updates
 **NEW! Claude 3 Sonnet on Bedrock Supported! New Message API Plus Vision Multimodal Chat!** 🎉🎉🎉
 
