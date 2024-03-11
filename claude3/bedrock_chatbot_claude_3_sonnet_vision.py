@@ -27,9 +27,6 @@ INIT_MESSAGE = {
     "content": "Hi! I'm Claude on Bedrock. How may I help you?",
 }
 
-SYSTEM_PROMPT = "You're a cool assistant, love to response with emoji."
-
-
 class StreamHandler(BaseCallbackHandler):
     """
     Callback handler to stream the generated text to Streamlit.
@@ -55,12 +52,17 @@ def set_page_config() -> None:
     st.title("🤖 Chat with Bedrock")
 
 
-def get_sidebar_params() -> Tuple[float, float, int, int, int]:
+def get_sidebar_params() -> Tuple[float, float, int, int, int, str]:
     """
     Get inference parameters from the sidebar.
     """
     with st.sidebar:
         st.markdown("## Inference Parameters")
+        system_prompt = st.text_area(
+            "System Prompt", 
+            "You're a cool assistant, love to response with emoji.",
+            key=f"{st.session_state['widget_key']}_System_Prompt",
+        )
         temperature = st.slider(
             "Temperature",
             min_value=0.0,
@@ -91,7 +93,7 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int]:
             max_value=4096,
             value=4096,
             step=8,
-            key=f"{st.session_state['widget_key']}_Max Token",
+            key=f"{st.session_state['widget_key']}_Max_Token",
         )
         memory_window = st.slider(
             "Memory Window",
@@ -99,10 +101,10 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int]:
             max_value=10,
             value=10,
             step=1,
-            key=f"{st.session_state['widget_key']}_Memory Window",
+            key=f"{st.session_state['widget_key']}_Memory_Window",
         )
 
-    return temperature, top_p, top_k, max_tokens, memory_window
+    return temperature, top_p, top_k, max_tokens, memory_window, system_prompt
 
 
 def init_conversationchain(
@@ -111,6 +113,7 @@ def init_conversationchain(
     top_k: int,
     max_tokens: int,
     memory_window: int,
+    system_prompt: str
 ) -> ConversationChain:
     """
     Initialize the ConversationChain with the given parameters.
@@ -120,8 +123,10 @@ def init_conversationchain(
         "top_p": top_p,
         "top_k": top_k,
         "max_tokens": max_tokens,
-        "system": SYSTEM_PROMPT,
     }
+    
+    if system_prompt != "":
+        model_kwargs["system"] = system_prompt
 
     llm = BedrockChat(model_id=MODEL_ID, model_kwargs=model_kwargs, streaming=True)
 
@@ -228,11 +233,11 @@ def main() -> None:
     if "widget_key" not in st.session_state:
         st.session_state["widget_key"] = str(random.randint(1, 1000000))
 
-    temperature, top_p, top_k, max_tokens, memory_window = get_sidebar_params()
-    conv_chain = init_conversationchain(temperature, top_p, top_k, max_tokens, memory_window)
-
     # Add a button to start a new chat
     st.sidebar.button("New Chat", on_click=new_chat, type="primary")
+    
+    temperature, top_p, top_k, max_tokens, memory_window, system_prompt = get_sidebar_params()
+    conv_chain = init_conversationchain(temperature, top_p, top_k, max_tokens, memory_window, system_prompt)
 
     # Image uploader
     if "file_uploader_key" not in st.session_state:
