@@ -62,7 +62,7 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
             key=f"{st.session_state['widget_key']}_System_Prompt",
         )
         model_id_select = st.selectbox(
-           'How would you like to be contacted?',
+           'Model',
            ('Claude 3 Sonnet', 'Claude 3 Haiku'),
            key=f"{st.session_state['widget_key']}_Model_Id",
            )
@@ -82,38 +82,46 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
             step=0.1,
             key=f"{st.session_state['widget_key']}_Temperature",
         )
-        top_p = st.slider(
-            "Top-P",
-            min_value=0.0,
-            max_value=1.0,
-            value=1.00,
-            step=0.01,
-            key=f"{st.session_state['widget_key']}_Top-P",
-        )
-        top_k = st.slider(
-            "Top-K",
-            min_value=1,
-            max_value=500,
-            value=500,
-            step=5,
-            key=f"{st.session_state['widget_key']}_Top-K",
-        )
-        max_tokens = st.slider(
-            "Max Token",
-            min_value=0,
-            max_value=4096,
-            value=4096,
-            step=8,
-            key=f"{st.session_state['widget_key']}_Max_Token",
-        )
-        memory_window = st.slider(
-            "Memory Window",
-            min_value=0,
-            max_value=10,
-            value=10,
-            step=1,
-            key=f"{st.session_state['widget_key']}_Memory_Window",
-        )
+        with st.container():
+            col1, col2 = st.columns(2)
+            with col1:
+                top_p = st.slider(
+                    "Top-P",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=1.00,
+                    step=0.01,
+                    key=f"{st.session_state['widget_key']}_Top-P",
+                )
+            with col2:
+                top_k = st.slider(
+                    "Top-K",
+                    min_value=1,
+                    max_value=500,
+                    value=500,
+                    step=5,
+                    key=f"{st.session_state['widget_key']}_Top-K",
+                )
+        with st.container():
+            col1, col2 = st.columns(2)
+            with col1:
+                max_tokens = st.slider(
+                    "Max Token",
+                    min_value=0,
+                    max_value=4096,
+                    value=4096,
+                    step=8,
+                    key=f"{st.session_state['widget_key']}_Max_Token",
+                )
+            with col2:
+                memory_window = st.slider(
+                    "Memory Window",
+                    min_value=0,
+                    max_value=10,
+                    value=10,
+                    step=1,
+                    key=f"{st.session_state['widget_key']}_Memory_Window",
+                )
 
     return temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id
 
