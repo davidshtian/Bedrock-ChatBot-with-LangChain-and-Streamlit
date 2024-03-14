@@ -61,11 +61,19 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
             "You're a cool assistant, love to response with emoji.",
             key=f"{st.session_state['widget_key']}_System_Prompt",
         )
-        model_id = st.selectbox(
+        model_id_select = st.selectbox(
            'How would you like to be contacted?',
-           ('anthropic.claude-3-sonnet-20240229-v1:0', 'anthropic.claude-3-haiku-20240307-v1:0'),
+           ('Claude 3 Sonnet', 'Claude 3 Haiku'),
            key=f"{st.session_state['widget_key']}_Model_Id",
            )
+        
+        model_map = {
+            "Claude 3 Sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
+            "Claude 3 Haiku": "anthropic.claude-3-haiku-20240307-v1:0"
+        }
+
+        model_id = model_map.get(model_id_select)
+        
         temperature = st.slider(
             "Temperature",
             min_value=0.0,
