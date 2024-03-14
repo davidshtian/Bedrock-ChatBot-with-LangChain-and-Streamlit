@@ -13,8 +13,6 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from PIL import Image
 
-MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"
-
 CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
     [
         MessagesPlaceholder(variable_name="history"),
@@ -52,7 +50,7 @@ def set_page_config() -> None:
     st.title("🤖 Chat with Bedrock")
 
 
-def get_sidebar_params() -> Tuple[float, float, int, int, int, str]:
+def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
     """
     Get inference parameters from the sidebar.
     """
@@ -63,6 +61,11 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str]:
             "You're a cool assistant, love to response with emoji.",
             key=f"{st.session_state['widget_key']}_System_Prompt",
         )
+        model_id = st.selectbox(
+           'How would you like to be contacted?',
+           ('anthropic.claude-3-sonnet-20240229-v1:0', 'anthropic.claude-3-haiku-20240307-v1:0'),
+           key=f"{st.session_state['widget_key']}_Model_Id",
+           )
         temperature = st.slider(
             "Temperature",
             min_value=0.0,
@@ -104,7 +107,7 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str]:
             key=f"{st.session_state['widget_key']}_Memory_Window",
         )
 
-    return temperature, top_p, top_k, max_tokens, memory_window, system_prompt
+    return temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id
 
 
 def init_conversationchain(
@@ -113,7 +116,8 @@ def init_conversationchain(
     top_k: int,
     max_tokens: int,
     memory_window: int,
-    system_prompt: str
+    system_prompt: str,
+    model_id: str
 ) -> ConversationChain:
     """
     Initialize the ConversationChain with the given parameters.
@@ -128,7 +132,7 @@ def init_conversationchain(
     if system_prompt != "":
         model_kwargs["system"] = system_prompt
 
-    llm = BedrockChat(model_id=MODEL_ID, model_kwargs=model_kwargs, streaming=True)
+    llm = BedrockChat(model_id=model_id, model_kwargs=model_kwargs, streaming=True)
 
     conversation = ConversationChain(
         llm=llm,
@@ -236,8 +240,8 @@ def main() -> None:
     # Add a button to start a new chat
     st.sidebar.button("New Chat", on_click=new_chat, type="primary")
     
-    temperature, top_p, top_k, max_tokens, memory_window, system_prompt = get_sidebar_params()
-    conv_chain = init_conversationchain(temperature, top_p, top_k, max_tokens, memory_window, system_prompt)
+    temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id = get_sidebar_params()
+    conv_chain = init_conversationchain(temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id)
 
     # Image uploader
     if "file_uploader_key" not in st.session_state:
