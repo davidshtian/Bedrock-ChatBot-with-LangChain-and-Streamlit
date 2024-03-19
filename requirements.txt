@@ -1,4 +1,4 @@
-langchain==0.1.11
+langchain==0.1.12
 langchain_community==0.0.27
 streamlit==1.32.0
 boto3
