@@ -2,6 +2,10 @@
 **NEW! Claude 3 Haiku on Bedrock Supported! Let's Go Faster!** 🎉🎉🎉
 <img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/0815f758-2d03-4763-8df8-a331cef83f50">
 
+Install via the command:
+```
+pip install -r requirements.txt
+```
 
 # 24/03/11 Updates
 **NEW! Claude 3 Sonnet on Bedrock Supported! New Message API Plus Vision Multimodal Chat!** 🎉🎉🎉
