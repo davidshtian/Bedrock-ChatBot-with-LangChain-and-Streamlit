@@ -20,9 +20,9 @@ CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-INIT_MESSAGE = {
+g = {
     "role": "assistant",
-    "content": "Hi! I'm Claude on Bedrock. How may I help you?",
+    "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
 }
 
 class StreamHandler(BaseCallbackHandler):
@@ -56,23 +56,33 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
     """
     with st.sidebar:
         st.markdown("## Inference Parameters")
-        system_prompt = st.text_area(
-            "System Prompt", 
-            "You're a cool assistant, love to response with emoji.",
-            key=f"{st.session_state['widget_key']}_System_Prompt",
-        )
         model_id_select = st.selectbox(
            'Model',
-           ('Claude 3 Sonnet', 'Claude 3 Haiku'),
+           ('Claude 3 Sonnet', 'Claude 3 Haiku', 'Mistral Large'),
            key=f"{st.session_state['widget_key']}_Model_Id",
            )
         
         model_map = {
             "Claude 3 Sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
-            "Claude 3 Haiku": "anthropic.claude-3-haiku-20240307-v1:0"
+            "Claude 3 Haiku": "anthropic.claude-3-haiku-20240307-v1:0",
+            "Mistral Large": "mistral.mistral-large-2402-v1:0"
         }
 
         model_id = model_map.get(model_id_select)
+        
+        if model_id_select == "Mistral Large":
+            system_prompt = st.text_area(
+                "System Prompt", 
+                "",
+                key=f"{st.session_state['widget_key']}_System_Prompt",
+                disabled = True
+            )
+        else:
+            system_prompt = st.text_area(
+                "System Prompt", 
+                "You're a cool assistant, love to respond with emoji.",
+                key=f"{st.session_state['widget_key']}_System_Prompt",
+            )
         
         temperature = st.slider(
             "Temperature",
@@ -94,14 +104,24 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
                     key=f"{st.session_state['widget_key']}_Top-P",
                 )
             with col2:
-                top_k = st.slider(
-                    "Top-K",
-                    min_value=1,
-                    max_value=500,
-                    value=500,
-                    step=5,
-                    key=f"{st.session_state['widget_key']}_Top-K",
-                )
+                if model_id_select == "Mistral Large":
+                        top_k = st.slider(
+                        "Top-K",
+                        min_value=1,
+                        max_value=200,
+                        value=200,
+                        step=5,
+                        key=f"{st.session_state['widget_key']}_Top-K",
+                    )
+                else:
+                    top_k = st.slider(
+                        "Top-K",
+                        min_value=1,
+                        max_value=500,
+                        value=500,
+                        step=5,
+                        key=f"{st.session_state['widget_key']}_Top-K",
+                    )
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
@@ -263,12 +283,21 @@ def main() -> None:
     if "file_uploader_key" not in st.session_state:
         st.session_state["file_uploader_key"] = 0
 
-    uploaded_files = st.file_uploader(
-        "Choose an image",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key=st.session_state["file_uploader_key"],
-    )
+    if model_id == "mistral.mistral-large-2402-v1:0":
+        uploaded_files = st.file_uploader(
+            "Choose an image",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key=st.session_state["file_uploader_key"],
+            disabled = True
+        )
+    else:
+        uploaded_files = st.file_uploader(
+            "Choose an image",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key=st.session_state["file_uploader_key"],
+        )
 
     # Display chat messages
     display_chat_messages(uploaded_files)
@@ -326,8 +355,12 @@ def main() -> None:
                 st.markdown(prompt)
 
     elif prompt:
-        prompt_text = {"type": "text", "text": prompt}
-        prompt_new = [prompt_text]
+        if model_id == "mistral.mistral-large-2402-v1:0":
+            prompt_new = prompt
+        else:
+            prompt_text = {"type": "text", "text": prompt}
+            prompt_new = [prompt_text]        
+
         st.session_state.messages.append({"role": "user", "content": prompt_new})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -349,3 +382,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
