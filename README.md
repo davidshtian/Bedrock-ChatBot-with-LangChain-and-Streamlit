@@ -1,7 +1,7 @@
 # 24/04/05 Updates
-**Add Dockfile for container enviroment and remove the packages installation** 🎉🎉🎉
+**Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
 
-Also build and upload a public container image at public.ecr.aws for you~
+You could build your own, and I've also uploaded a public container image at public.ecr.aws for you~
 ```
 docker run -d -v $HOME/.aws/config:/root/.aws/config:ro -p 8502:8501 public.ecr.aws/shtian/bedrock-claude-3-langchain-streamlit:latest
 ```
