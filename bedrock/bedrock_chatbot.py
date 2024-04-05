@@ -20,7 +20,7 @@ CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-g = {
+INIT_MESSAGE = {
     "role": "assistant",
     "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
 }
