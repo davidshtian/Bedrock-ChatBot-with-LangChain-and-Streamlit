@@ -1,3 +1,11 @@
+# 24/04/05 Updates
+**Add Dockfile for container enviroment and remove the packages installation** 🎉🎉🎉
+
+Also build and upload a public container image at public.ecr.aws for you~
+```
+docker run -d -v $HOME/.aws/config:/root/.aws/config:ro -p 8502:8501 public.ecr.aws/shtian/bedrock-claude-3-langchain-streamlit:latest
+```
+
 # 24/03/14 Updates
 **NEW! Claude 3 Haiku on Bedrock Supported! Let's Go Faster!** 🎉🎉🎉
 <img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/0815f758-2d03-4763-8df8-a331cef83f50">
