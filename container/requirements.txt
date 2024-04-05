@@ -1,0 +1,3 @@
+langchain==0.1.12
+streamlit==1.32.2
+boto3
