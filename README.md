@@ -1,3 +1,10 @@
+# Bedrock ChatBot with LangChain and Streamlit 💬 
+A simple and clear example for implement a chatbot with Bedrock + LangChain + Streamlit. Just install and run the code~ 🚀
+```
+pip install -r requirements.txt
+streamlit run bedrock/bedrock_chatbot.py
+```
+
 # 24/04/05 Updates
 **1. Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
 
@@ -8,7 +15,6 @@ docker run -d -v $HOME/.aws/config:/root/.aws/config:ro -p 8502:8501 public.ecr.
 
 **2. NEW! Mistral Large on Bedrock Supported!** 🎉🎉🎉
 <img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/cf008fa9-2dd2-4aef-829a-c8a3473c0555">
-
 
 # 24/03/14 Updates
 **NEW! Claude 3 Haiku on Bedrock Supported! Let's Go Faster!** 🎉🎉🎉
@@ -80,12 +86,6 @@ pip install -e langchain/libs/langchain
 Then run the command:
 ```
 streamlit run bedrock_chatbot_claude_3_sonnet.py
-```
-
-# Bedrock ChatBot with LangChain and Streamlit 💬 
-A simple and clear example for implement a chatbot with Bedrock(Claude) + LangChain + Streamlit. Just `cd` to the corresponding folder and run the code:
-```
-streamlit run bedrock_chatbot.py
 ```
 
 The bot is equipped with chat history using [ConversationBufferWindowMemory](https://python.langchain.com/docs/modules/memory/types/buffer_window) and [StreamlitChatMessageHistory](https://python.langchain.com/docs/integrations/memory/streamlit_chat_message_history), and provided with both simple(batch) and streaming modes. Demo shown as below:
