@@ -1,17 +1,18 @@
 import base64
 import random
 from io import BytesIO
-from typing import List, Tuple, Union
+from typing import Tuple
 
 import streamlit as st
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
-from langchain_community.chat_models import BedrockChat
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from PIL import Image
+
+from config import config
+from models import ChatModel
 
 CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -20,7 +21,7 @@ CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-g = {
+INIT_MESSAGE = {
     "role": "assistant",
     "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
 }
@@ -41,54 +42,41 @@ class StreamHandler(BaseCallbackHandler):
         self.text += token
         self.container.markdown(self.text)
 
-
-def set_page_config() -> None:
+def render_sidebar() -> Tuple[float, float, int, int, int, str]:
     """
-    Set the Streamlit page configuration.
-    """
-    st.set_page_config(page_title="🤖 Chat with Bedrock", layout="wide")
-    st.title("🤖 Chat with Bedrock")
-
-
-def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
-    """
-    Get inference parameters from the sidebar.
+    Render the sidebar UI and return the inference parameters.
     """
     with st.sidebar:
         st.markdown("## Inference Parameters")
         model_id_select = st.selectbox(
-           'Model',
-           ('Claude 3 Sonnet', 'Claude 3 Haiku', 'Mistral Large'),
-           key=f"{st.session_state['widget_key']}_Model_Id",
-           )
-        
-        model_map = {
-            "Claude 3 Sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
-            "Claude 3 Haiku": "anthropic.claude-3-haiku-20240307-v1:0",
-            "Mistral Large": "mistral.mistral-large-2402-v1:0"
-        }
+            'Model',
+            list(config["models"].keys()),
+            key=f"{st.session_state['widget_key']}_Model_Id",
+        )
 
-        model_id = model_map.get(model_id_select)
-        
-        if model_id_select == "Mistral Large":
+        st.session_state["model_id"] = model_id_select
+
+        model_config = config["models"][model_id_select]
+
+        if model_config.get("system_prompt_disabled", False):
             system_prompt = st.text_area(
-                "System Prompt", 
+                "System Prompt",
                 "",
                 key=f"{st.session_state['widget_key']}_System_Prompt",
-                disabled = True
+                disabled=True
             )
         else:
             system_prompt = st.text_area(
-                "System Prompt", 
-                "You're a cool assistant, love to respond with emoji.",
+                "System Prompt",
+                model_config.get("default_system_prompt", ""),
                 key=f"{st.session_state['widget_key']}_System_Prompt",
             )
-        
+
         temperature = st.slider(
             "Temperature",
             min_value=0.0,
             max_value=1.0,
-            value=1.0,
+            value=model_config.get("temperature", 1.0),
             step=0.1,
             key=f"{st.session_state['widget_key']}_Temperature",
         )
@@ -99,29 +87,19 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
                     "Top-P",
                     min_value=0.0,
                     max_value=1.0,
-                    value=1.00,
+                    value=model_config.get("top_p", 1.0),
                     step=0.01,
                     key=f"{st.session_state['widget_key']}_Top-P",
                 )
             with col2:
-                if model_id_select == "Mistral Large":
-                        top_k = st.slider(
-                        "Top-K",
-                        min_value=1,
-                        max_value=200,
-                        value=200,
-                        step=5,
-                        key=f"{st.session_state['widget_key']}_Top-K",
-                    )
-                else:
-                    top_k = st.slider(
-                        "Top-K",
-                        min_value=1,
-                        max_value=500,
-                        value=500,
-                        step=5,
-                        key=f"{st.session_state['widget_key']}_Top-K",
-                    )
+                top_k = st.slider(
+                    "Top-K",
+                    min_value=1,
+                    max_value=model_config.get("max_top_k", 500),
+                    value=model_config.get("top_k", 500),
+                    step=5,
+                    key=f"{st.session_state['widget_key']}_Top-K",
+                )
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
@@ -129,7 +107,7 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
                     "Max Token",
                     min_value=0,
                     max_value=4096,
-                    value=4096,
+                    value=model_config.get("max_tokens", 4096),
                     step=8,
                     key=f"{st.session_state['widget_key']}_Max_Token",
                 )
@@ -138,43 +116,22 @@ def get_sidebar_params() -> Tuple[float, float, int, int, int, str, str]:
                     "Memory Window",
                     min_value=0,
                     max_value=10,
-                    value=10,
+                    value=model_config.get("memory_window", 10),
                     step=1,
                     key=f"{st.session_state['widget_key']}_Memory_Window",
                 )
 
-    return temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id
+    return temperature, top_p, top_k, max_tokens, memory_window, system_prompt
 
-
-def init_conversationchain(
-    temperature: float,
-    top_p: float,
-    top_k: int,
-    max_tokens: int,
-    memory_window: int,
-    system_prompt: str,
-    model_id: str
-) -> ConversationChain:
+def render_chat_area(chat_model: ChatModel) -> None:
     """
-    Initialize the ConversationChain with the given parameters.
+    Render the chat area UI and handle message generation.
     """
-    model_kwargs = {
-        "temperature": temperature,
-        "top_p": top_p,
-        "top_k": top_k,
-        "max_tokens": max_tokens,
-    }
-    
-    if system_prompt != "":
-        model_kwargs["system"] = system_prompt
-
-    llm = BedrockChat(model_id=model_id, model_kwargs=model_kwargs, streaming=True)
-
     conversation = ConversationChain(
-        llm=llm,
+        llm=chat_model.llm,
         verbose=True,
         memory=ConversationBufferWindowMemory(
-            k=memory_window,
+            k=chat_model.model_kwargs.get("memory_window", 10),
             ai_prefix="Assistant",
             chat_memory=StreamlitChatMessageHistory(),
             return_messages=True,
@@ -186,53 +143,14 @@ def init_conversationchain(
     if "messages" not in st.session_state:
         st.session_state.messages = [INIT_MESSAGE]
 
-    return conversation
-
-
-def generate_response(
-    conversation: ConversationChain, input: Union[str, List[dict]]
-) -> str:
-    """
-    Generate a response from the conversation chain with the given input.
-    """
-    return conversation.invoke(
-        {"input": input}, {"callbacks": [StreamHandler(st.empty())]}
+    # Modify langchain_messages format
+    st.session_state["langchain_messages"] = chat_model.format_messages(
+        st.session_state.get("langchain_messages", [])
     )
 
-
-def new_chat() -> None:
-    """
-    Reset the chat session and initialize a new conversation chain.
-    """
-    st.session_state["messages"] = [INIT_MESSAGE]
-    st.session_state["langchain_messages"] = []
-    st.session_state["file_uploader_key"] = random.randint(1, 100)
-
-
-def display_chat_messages(uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile]) -> None:
-    """
-    Display chat messages and uploaded images in the Streamlit app.
-    """
+    # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            if uploaded_files:
-                if "images" in message and message["images"]:
-                    num_cols = 10
-                    cols = st.columns(num_cols)
-                    i = 0
-
-                    for image_id in message["images"]:
-                        for uploaded_file in uploaded_files:
-                            if image_id == uploaded_file.file_id:
-                                img = Image.open(uploaded_file)
-
-                                with cols[i]:
-                                    st.image(img, caption="", width=75)
-                                    i += 1
-
-                                if i >= num_cols:
-                                    i = 0
-
             if message["role"] == "user":
                 if isinstance(message["content"], str):
                     st.markdown(message["content"])
@@ -247,49 +165,38 @@ def display_chat_messages(uploaded_files: List[st.runtime.uploaded_file_manager.
                 elif "response" in message["content"]:
                     st.markdown(message["content"]["response"])
 
+    # User-provided prompt
+    prompt = st.chat_input()
 
-def langchain_messages_format(messages: List[Union[AIMessage, HumanMessage]]) -> List[Union[AIMessage, HumanMessage]]:
+    if prompt:
+        formatted_prompt = chat_model.format_prompt(prompt)
+        st.session_state.messages.append({"role": "user", "content": formatted_prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            response = conversation.invoke(
+                {"input": [{"role": "user", "content": formatted_prompt}]},
+                {"callbacks": [StreamHandler(st.empty())]},
+            )
+        message = {"role": "assistant", "content": response}
+        st.session_state.messages.append(message)
+
+def render_image_uploader() -> None:
     """
-    Format the messages for the LangChain conversation chain.
+    Render the image uploader UI.
     """
-    for i, message in enumerate(messages):
-        if isinstance(message.content, list):
-            if "role" in message.content[0]:
-                if message.type == "ai":
-                    message = AIMessage(message.content[0]["content"])
-                if message.type == "human":
-                    message = HumanMessage(message.content[0]["content"])
-                messages[i] = message
-    return messages
-
-
-def main() -> None:
-    """
-    Main function to run the Streamlit app.
-    """
-    set_page_config()
-
-    # Generate a unique widget key only once
-    if "widget_key" not in st.session_state:
-        st.session_state["widget_key"] = str(random.randint(1, 1000000))
-
-    # Add a button to start a new chat
-    st.sidebar.button("New Chat", on_click=new_chat, type="primary")
-    
-    temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id = get_sidebar_params()
-    conv_chain = init_conversationchain(temperature, top_p, top_k, max_tokens, memory_window, system_prompt, model_id)
-
-    # Image uploader
     if "file_uploader_key" not in st.session_state:
         st.session_state["file_uploader_key"] = 0
 
-    if model_id == "mistral.mistral-large-2402-v1:0":
+    model_config = config["models"][st.session_state["model_id"]]
+    if model_config.get("image_upload_disabled", False):
         uploaded_files = st.file_uploader(
             "Choose an image",
             type=["jpg", "jpeg", "png"],
             accept_multiple_files=True,
             key=st.session_state["file_uploader_key"],
-            disabled = True
+            disabled=True
         )
     else:
         uploaded_files = st.file_uploader(
@@ -299,87 +206,36 @@ def main() -> None:
             key=st.session_state["file_uploader_key"],
         )
 
-    # Display chat messages
-    display_chat_messages(uploaded_files)
+    # TODO: Implement image handling logic
 
-    # User-provided prompt
-    prompt = st.chat_input()
+def main():
+    st.set_page_config(page_title="🤖 Chat with Bedrock", layout="wide")
+    st.title("🤖 Chat with Bedrock")
 
-    # Get images from previous messages
-    message_images_list = [
-        image_id
-        for message in st.session_state.messages
-        if message["role"] == "user"
-        and "images" in message
-        and message["images"]
-        for image_id in message["images"]
-    ]
+    # Generate a unique widget key only once
+    if "widget_key" not in st.session_state:
+        st.session_state["widget_key"] = str(random.randint(1, 1000000))
 
-    # Show image in corresponding chat box
-    uploaded_file_ids = []
-    if uploaded_files and len(message_images_list) < len(uploaded_files):
-        with st.chat_message("user"):
-            num_cols = 10
-            cols = st.columns(num_cols)
-            i = 0
-            content_images = []
+    # Add a button to start a new chat
+    st.sidebar.button("New Chat", on_click=lambda: st.session_state.clear(), type="primary")
 
-            for uploaded_file in uploaded_files:
-                if uploaded_file.file_id not in message_images_list:
-                    uploaded_file_ids.append(uploaded_file.file_id)
-                    img = Image.open(uploaded_file)
-                    with BytesIO() as output_buffer:
-                        img.save(output_buffer, format=img.format)
-                        content_image = base64.b64encode(output_buffer.getvalue()).decode(
-                            "utf8"
-                        )
-                    content_images.append(content_image)
-                    with cols[i]:
-                        st.image(img, caption="", width=75)
-                        i += 1
-                    if i >= num_cols:
-                        i = 0
+    sidebar_params = render_sidebar()
+    model_config = config["models"][st.session_state["model_id"]]
+    model_kwargs = {
+        "temperature": sidebar_params[0],
+        "top_p": sidebar_params[1],
+        "top_k": sidebar_params[2],
+        "max_tokens": sidebar_params[3],
+        "memory_window": sidebar_params[4],
+        "system": sidebar_params[5],
+        **model_config.get("additional_model_kwargs", {})
+    }
+    chat_model = ChatModel(model_config["model_id"], model_kwargs)
 
-            if prompt:
-                prompt_text = {"type": "text", "text": prompt}
-                prompt_new = [prompt_text]
-                for content_image in content_images:
-                    prompt_image = {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": "image/jpeg", "data": content_image},
-                    }
-                    prompt_new.append(prompt_image)
-                st.session_state.messages.append(
-                    {"role": "user", "content": prompt_new, "images": uploaded_file_ids}
-                )
-                st.markdown(prompt)
-
-    elif prompt:
-        if model_id == "mistral.mistral-large-2402-v1:0":
-            prompt_new = prompt
-        else:
-            prompt_text = {"type": "text", "text": prompt}
-            prompt_new = [prompt_text]        
-
-        st.session_state.messages.append({"role": "user", "content": prompt_new})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-    # Modify langchain_messages format
-    st.session_state["langchain_messages"] = langchain_messages_format(
-        st.session_state["langchain_messages"]
-    )
-
-    # Generate a new response if last message is not from assistant
-    if st.session_state.messages[-1]["role"] != "assistant":
-        with st.chat_message("assistant"):
-            response = generate_response(
-                conv_chain, [{"role": "user", "content": prompt_new}]
-            )
-        message = {"role": "assistant", "content": response}
-        st.session_state.messages.append(message)
-
+    render_image_uploader()
+    render_chat_area(chat_model)
 
 if __name__ == "__main__":
     main()
+
 
