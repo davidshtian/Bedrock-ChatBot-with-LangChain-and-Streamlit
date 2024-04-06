@@ -48,15 +48,15 @@ def render_sidebar() -> Tuple[float, float, int, int, int, str]:
     """
     with st.sidebar:
         st.markdown("## Inference Parameters")
-        model_id_select = st.selectbox(
+        model_name_select = st.selectbox(
             'Model',
             list(config["models"].keys()),
             key=f"{st.session_state['widget_key']}_Model_Id",
         )
 
-        st.session_state["model_id"] = model_id_select
+        st.session_state["model_name"] = model_name_select
 
-        model_config = config["models"][model_id_select]
+        model_config = config["models"][model_name_select]
 
         if model_config.get("system_prompt_disabled", False):
             system_prompt = st.text_area(
@@ -189,7 +189,7 @@ def render_image_uploader() -> None:
     if "file_uploader_key" not in st.session_state:
         st.session_state["file_uploader_key"] = 0
 
-    model_config = config["models"][st.session_state["model_id"]]
+    model_config = config["models"][st.session_state["model_name"]]
     if model_config.get("image_upload_disabled", False):
         uploaded_files = st.file_uploader(
             "Choose an image",
@@ -220,17 +220,17 @@ def main():
     st.sidebar.button("New Chat", on_click=lambda: st.session_state.clear(), type="primary")
 
     sidebar_params = render_sidebar()
-    model_config = config["models"][st.session_state["model_id"]]
+    model_config = config["models"][st.session_state["model_name"]]
     model_kwargs = {
         "temperature": sidebar_params[0],
         "top_p": sidebar_params[1],
         "top_k": sidebar_params[2],
         "max_tokens": sidebar_params[3],
-        "memory_window": sidebar_params[4],
-        "system": sidebar_params[5],
-        **model_config.get("additional_model_kwargs", {})
     }
-    chat_model = ChatModel(model_config["model_id"], model_kwargs)
+    if not model_config.get("system_prompt_disabled", False):
+        model_kwargs["system"] = sidebar_params[5]
+
+    chat_model = ChatModel(st.session_state["model_name"], model_kwargs)
 
     render_image_uploader()
     render_chat_area(chat_model)
