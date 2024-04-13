@@ -310,7 +310,7 @@ def display_uploaded_files(
                     i = 0
             except UnidentifiedImageError:
                 # If not an image, try to read as a text or pdf file
-                if uploaded_file.type in ['text/plain', 'text/csv']:
+                if uploaded_file.type in ['text/plain', 'text/csv', 'text/x-python-script']:
                     # Ensure we're at the start of the file
                     uploaded_file.seek(0)
                     # Read file line by line
@@ -320,7 +320,10 @@ def display_uploaded_files(
                         "type": "text",
                         "text": text
                     })
-                    st.write(f"📄 Uploaded text file: {uploaded_file.name}")
+                    if uploaded_file.type == 'text/x-python-script':
+                        st.write(f"🐍 Uploaded Python file: {uploaded_file.name}")
+                    else:
+                        st.write(f"📄 Uploaded text file: {uploaded_file.name}")
                 elif uploaded_file.type == 'application/pdf':
                     # Read pdf file
                     pdf_file = pdfplumber.open(uploaded_file)
@@ -360,7 +363,7 @@ def main() -> None:
     image_upload_disabled = model_config.get("image_upload_disabled", False)
     uploaded_files = st.file_uploader(
         "Choose a file",
-        type=["jpg", "jpeg", "png", "txt", "pdf", "csv"],
+        type=["jpg", "jpeg", "png", "txt", "pdf", "csv","py"],
         accept_multiple_files=True,
         key=st.session_state["file_uploader_key"],
         disabled=image_upload_disabled,
