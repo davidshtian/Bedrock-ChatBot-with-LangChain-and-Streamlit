@@ -363,7 +363,7 @@ def main() -> None:
     image_upload_disabled = model_config.get("image_upload_disabled", False)
     uploaded_files = st.file_uploader(
         "Choose a file",
-        type=["jpg", "jpeg", "png", "txt", "pdf", "csv","py"],
+        type=["jpg", "jpeg", "png", "txt", "pdf", "csv", "py"],
         accept_multiple_files=True,
         key=st.session_state["file_uploader_key"],
         disabled=image_upload_disabled,
@@ -397,7 +397,7 @@ def main() -> None:
 
             if prompt:
                 formatted_prompt = chat_model.format_prompt(prompt)
-                if text_files:  # Assuming text_files is a list of uploaded text files
+                if text_files:
                     for text_file in text_files:
                         formatted_prompt.append(text_file.getvalue())  # Append the content of the text file to the prompt
                 for content_image in content_images:
