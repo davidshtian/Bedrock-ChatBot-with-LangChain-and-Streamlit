@@ -10,6 +10,9 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from PIL import Image
+from typing import Union
+from PIL import UnidentifiedImageError
+import pdfplumber
 
 from config import config
 from models import ChatModel
@@ -213,15 +216,17 @@ def display_images(
     for image_id in image_ids:
         for uploaded_file in uploaded_files:
             if image_id == uploaded_file.file_id:
-                img = Image.open(uploaded_file)
+                if uploaded_file.type.startswith('image/'):
+                    img = Image.open(uploaded_file)
 
-                with cols[i]:
-                    st.image(img, caption="", width=75)
-                    i += 1
+                    with cols[i]:
+                        st.image(img, caption="", width=75)
+                        i += 1
 
-                if i >= num_cols:
-                    i = 0
-
+                    if i >= num_cols:
+                        i = 0
+                else:
+                    st.error(f"File {uploaded_file.name} is not an image file.")
 
 def display_user_message(message_content: Union[str, List[dict]]) -> None:
     """
@@ -263,47 +268,75 @@ def langchain_messages_format(
                 messages[i] = message
     return messages
 
-
-def display_uploaded_images(
+def display_uploaded_files(
     uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile],
     message_images_list: List[str],
     uploaded_file_ids: List[str],
-) -> List[dict]:
+) -> List[Union[dict, str]]:
     """
     Display uploaded images and return a list of image dictionaries for the prompt.
+    Also handle txt and pdf files.
     """
     num_cols = 10
     cols = st.columns(num_cols)
     i = 0
-    content_images = []
+    content_files = []
 
     for uploaded_file in uploaded_files:
         if uploaded_file.file_id not in message_images_list:
             uploaded_file_ids.append(uploaded_file.file_id)
-            img = Image.open(uploaded_file)
-            with BytesIO() as output_buffer:
-                img.save(output_buffer, format=img.format)
-                content_image = base64.b64encode(output_buffer.getvalue()).decode(
-                    "utf8"
+            try:
+                # Try to open as an image
+                img = Image.open(uploaded_file)
+                with BytesIO() as output_buffer:
+                    img.save(output_buffer, format=img.format)
+                    content_image = base64.b64encode(output_buffer.getvalue()).decode(
+                        "utf8"
+                    )
+                content_files.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": content_image,
+                        },
+                    }
                 )
-            content_images.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": content_image,
-                    },
-                }
-            )
-            with cols[i]:
-                st.image(img, caption="", width=75)
-                i += 1
-            if i >= num_cols:
-                i = 0
+                with cols[i]:
+                    st.image(img, caption="", width=75)
+                    i += 1
+                if i >= num_cols:
+                    i = 0
+            except UnidentifiedImageError:
+                # If not an image, try to read as a text or pdf file
+                if uploaded_file.type in ['text/plain', 'text/csv', 'text/x-python-script']:
+                    # Ensure we're at the start of the file
+                    uploaded_file.seek(0)
+                    # Read file line by line
+                    lines = uploaded_file.readlines()
+                    text = ''.join(line.decode() for line in lines)
+                    content_files.append({
+                        "type": "text",
+                        "text": text
+                    })
+                    if uploaded_file.type == 'text/x-python-script':
+                        st.write(f"🐍 Uploaded Python file: {uploaded_file.name}")
+                    else:
+                        st.write(f"📄 Uploaded text file: {uploaded_file.name}")
+                elif uploaded_file.type == 'application/pdf':
+                    # Read pdf file
+                    pdf_file = pdfplumber.open(uploaded_file)
+                    first_page = pdf_file.pages[0]
+                    text = first_page.extract_text()
+                    content_files.append({
+                        "type": "pdf",
+                        "text": text
+                    })
+                    st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
+                    pdf_file.close()
 
-    return content_images
-
+    return content_files
 
 def main() -> None:
     """
@@ -329,8 +362,8 @@ def main() -> None:
     model_config = config["models"][st.session_state["model_name"]]
     image_upload_disabled = model_config.get("image_upload_disabled", False)
     uploaded_files = st.file_uploader(
-        "Choose an image",
-        type=["jpg", "jpeg", "png"],
+        "Choose a file",
+        type=["jpg", "jpeg", "png", "txt", "pdf", "csv", "py"],
         accept_multiple_files=True,
         key=st.session_state["file_uploader_key"],
         disabled=image_upload_disabled,
@@ -356,13 +389,20 @@ def main() -> None:
     uploaded_file_ids = []
     if uploaded_files and len(message_images_list) < len(uploaded_files):
         with st.chat_message("user"):
-            content_images = display_uploaded_images(
+            content_images = display_uploaded_files(
                 uploaded_files, message_images_list, uploaded_file_ids
             )
 
+            text_files = [file for file in uploaded_files if file.type == 'text/plain']
+
             if prompt:
                 formatted_prompt = chat_model.format_prompt(prompt)
+                if text_files:
+                    for text_file in text_files:
+                        formatted_prompt.append(text_file.getvalue())  # Append the content of the text file to the prompt
                 for content_image in content_images:
+                    if content_image['type'] == 'pdf':  # Only change the type for messages where the type is 'pdf'
+                        content_image['type'] = 'text'  # Change the type field to 'text'
                     formatted_prompt.append(content_image)
                 st.session_state.messages.append(
                     {"role": "user", "content": formatted_prompt, "images": uploaded_file_ids}
