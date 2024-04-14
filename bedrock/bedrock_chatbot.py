@@ -9,9 +9,7 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
-from PIL import Image
-from typing import Union
-from PIL import UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 import pdfplumber
 
 from config import config
