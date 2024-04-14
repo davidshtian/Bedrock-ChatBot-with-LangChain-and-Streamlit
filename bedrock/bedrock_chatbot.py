@@ -223,19 +223,28 @@ def display_images(
 
                     if i >= num_cols:
                         i = 0
-                else:
-                    st.error(f"File {uploaded_file.name} is not an image file.")
+                elif uploaded_file.type in ['text/plain', 'text/csv', 'text/x-python-script']:
+                    if uploaded_file.type == 'text/x-python-script':
+                        st.write(f"🐍 Uploaded Python file: {uploaded_file.name}")
+                    else:
+                        st.write(f"📄 Uploaded text file: {uploaded_file.name}")
+                elif uploaded_file.type == 'application/pdf':
+                    st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
+                    
 
 def display_user_message(message_content: Union[str, List[dict]]) -> None:
     """
     Display user message in the chat message.
     """
     if isinstance(message_content, str):
-        st.markdown(message_content)
+        message_text = message_content
     elif isinstance(message_content, dict):
-        st.markdown(message_content["input"][0]["content"][0]["text"])
+        message_text = message_content["input"][0]["content"][0]["text"]
     else:
-        st.markdown(message_content[0]["text"])
+        message_text = message_content[0]["text"]
+
+    message_content_markdown = message_text.split('</context>\n\n', 1)[-1]
+    st.markdown(message_content_markdown)
 
 
 def display_assistant_message(message_content: Union[str, dict]) -> None:
@@ -325,11 +334,12 @@ def display_uploaded_files(
                 elif uploaded_file.type == 'application/pdf':
                     # Read pdf file
                     pdf_file = pdfplumber.open(uploaded_file)
-                    first_page = pdf_file.pages[0]
-                    text = first_page.extract_text()
+                    page_text = ""
+                    for page in pdf_file.pages:
+                        page_text += page.extract_text()
                     content_files.append({
-                        "type": "pdf",
-                        "text": text
+                        "type": "text",
+                        "text": page_text
                     })
                     st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
                     pdf_file.close()
@@ -387,21 +397,25 @@ def main() -> None:
     uploaded_file_ids = []
     if uploaded_files and len(message_images_list) < len(uploaded_files):
         with st.chat_message("user"):
-            content_images = display_uploaded_files(
+            content_files = display_uploaded_files(
                 uploaded_files, message_images_list, uploaded_file_ids
             )
-
-            text_files = [file for file in uploaded_files if file.type == 'text/plain']
-
+            
             if prompt:
-                formatted_prompt = chat_model.format_prompt(prompt)
-                if text_files:
-                    for text_file in text_files:
-                        formatted_prompt.append(text_file.getvalue())  # Append the content of the text file to the prompt
-                for content_image in content_images:
-                    if content_image['type'] == 'pdf':  # Only change the type for messages where the type is 'pdf'
-                        content_image['type'] = 'text'  # Change the type field to 'text'
-                    formatted_prompt.append(content_image)
+                context_text = ""
+                context_image = []
+                for content_file in content_files:
+                    if content_file['type'] == 'text':
+                        context_text += content_file['text'] + "\n\n"
+                    else:
+                        context_image.append(content_file)
+                
+                if context_text != "":
+                    prompt_new = f"Here is some context for you: \n<context>\n{context_text}</context>\n\n{prompt}"
+                else:
+                    prompt_new = prompt
+                    
+                formatted_prompt = chat_model.format_prompt(prompt_new) + context_image
                 st.session_state.messages.append(
                     {"role": "user", "content": formatted_prompt, "images": uploaded_file_ids}
                 )
