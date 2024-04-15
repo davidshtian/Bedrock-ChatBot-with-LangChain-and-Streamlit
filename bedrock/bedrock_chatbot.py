@@ -355,15 +355,9 @@ def display_uploaded_files(
                 elif uploaded_file.type == 'application/pdf':
                     # Read pdf file
                     pdf_file = pdfplumber.open(uploaded_file)
-<<<<<<< HEAD
                     page_text = ""
                     for page in pdf_file.pages:
                         page_text += page.extract_text()
-=======
-                    text = ""
-                    for page in pdf_file.pages:
-                        text += page.extract_text()
->>>>>>> 1dd8da7 (fix multiple pdf pages)
                     content_files.append({
                         "type": "text",
                         "text": page_text
