@@ -1,7 +1,7 @@
 import base64
 import random
 from io import BytesIO
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict
 
 import streamlit as st
 from langchain.callbacks.base import BaseCallbackHandler
@@ -9,12 +9,16 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
+from langchain_community.utilities import SerpAPIWrapper
 from PIL import Image, UnidentifiedImageError
 import pdfplumber
 
 from config import config
 from models import ChatModel
 from role_prompt import role_prompt
+
+from dotenv import load_dotenv
+load_dotenv()
 
 INIT_MESSAGE = {
     "role": "assistant",
@@ -27,7 +31,6 @@ CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
         MessagesPlaceholder(variable_name="input"),
     ]
 )
-
 
 class StreamHandler(BaseCallbackHandler):
     """
@@ -54,7 +57,7 @@ def set_page_config() -> None:
     st.title("🤖 Chat with Bedrock")
 
 
-def render_sidebar() -> Tuple[float, float, int, int, int, str]:
+def render_sidebar() -> Tuple[Dict, int, str]:
     """
     Render the sidebar UI and return the inference parameters.
     """
@@ -86,15 +89,23 @@ def render_sidebar() -> Tuple[float, float, int, int, int, str]:
             key=f"{st.session_state['widget_key']}_System_Prompt",
             disabled=system_prompt_disabled,
         )
-
-        temperature = st.slider(
-            "Temperature",
-            min_value=0.0,
-            max_value=1.0,
-            value=model_config.get("temperature", 1.0),
-            step=0.1,
-            key=f"{st.session_state['widget_key']}_Temperature",
-        )
+        with st.container():
+            col1, col2 = st.columns(2)
+            with col1:   
+                web_local = st.selectbox(
+                    'Web or Local',
+                    ('Local', 'Web'),
+                    key=f"{st.session_state['widget_key']}_Web",
+                )     
+            with col2:  
+                temperature = st.slider(
+                    "Temperature",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=model_config.get("temperature", 1.0),
+                    step=0.1,
+                    key=f"{st.session_state['widget_key']}_Temperature",
+                )
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
@@ -146,7 +157,7 @@ def render_sidebar() -> Tuple[float, float, int, int, int, str]:
         model_kwargs["system"] = system_prompt
 
 
-    return model_kwargs, memory_window
+    return model_kwargs, memory_window, web_local
 
 
 def init_conversationchain(chat_model: ChatModel, memory_window: int) -> ConversationChain:
@@ -356,6 +367,17 @@ def display_uploaded_files(
 
     return content_files
 
+def web_or_local(prompt: str, web_local: str) -> str:
+    if web_local == "Web":
+        search = SerpAPIWrapper()
+        search_text = search.run(prompt)
+        print("david - ", search_text)
+        web_contect = "Here is the web search result: \n\n<search>\n\n" + search_text + "\n\n</search>\n\n"
+        prompt = web_contect + prompt
+        return prompt
+    else:
+        return prompt
+    
 def main() -> None:
     """
     Main function to run the Streamlit app.
@@ -369,7 +391,7 @@ def main() -> None:
     # Add a button to start a new chat
     st.sidebar.button("New Chat", on_click=new_chat, type="primary")
 
-    model_kwargs, memory_window = render_sidebar()
+    model_kwargs, memory_window, web_local = render_sidebar()
     chat_model = ChatModel(st.session_state["model_name"], model_kwargs)
     conv_chain = init_conversationchain(chat_model, memory_window)
 
@@ -414,6 +436,7 @@ def main() -> None:
             if prompt:
                 context_text = ""
                 context_image = []
+                prompt = web_or_local(prompt, web_local)
                 for content_file in content_files:
                     if content_file['type'] == 'text':
                         context_text += content_file['text'] + "\n\n"
@@ -432,6 +455,7 @@ def main() -> None:
                 st.markdown(prompt)
 
     elif prompt:
+        prompt = web_or_local(prompt, web_local)
         formatted_prompt = chat_model.format_prompt(prompt)
         st.session_state.messages.append({"role": "user", "content": formatted_prompt})
         with st.chat_message("user"):
