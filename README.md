@@ -4,6 +4,8 @@ A simple and clear example for implement a chatbot with Bedrock + LangChain + St
 pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
+> Note: if you're going to use web search function, add your serpapi key to bedrock/.env file~
+
 # 24/04/15 Updates
 **Add Web Search (via SerpAPI) and role prompt option!** 🎉🎉🎉
 
