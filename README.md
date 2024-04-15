@@ -4,6 +4,11 @@ A simple and clear example for implement a chatbot with Bedrock + LangChain + St
 pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
+# 24/04/15 Updates
+**Thanks [@madtank](https://github.com/madtank) for adding PDF/CSV/PY file upload feature!** 🎉🎉🎉
+
+<img width="1439" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/080daef6-6fbf-413a-b08b-a6d75a665f66">
+
 
 # 24/04/05 Updates
 **1. Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
