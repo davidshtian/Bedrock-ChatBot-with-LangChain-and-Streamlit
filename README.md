@@ -5,10 +5,14 @@ pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
 # 24/04/15 Updates
+**Add Web Search (via SerpAPI) and role prompt option!** 🎉🎉🎉
+
+<img width="1439" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/45222f10-2e61-45d1-866b-5afc807e7b00">
+
+# 24/04/14 Updates
 **Thanks [@madtank](https://github.com/madtank) for adding PDF/CSV/PY file upload feature!** 🎉🎉🎉
 
 <img width="1439" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/080daef6-6fbf-413a-b08b-a6d75a665f66">
-
 
 # 24/04/05 Updates
 **1. Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
