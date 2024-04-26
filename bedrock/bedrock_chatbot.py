@@ -371,7 +371,7 @@ def web_or_local(prompt: str, web_local: str) -> str:
     if web_local == "Web":
         search = SerpAPIWrapper()
         search_text = search.run(prompt)
-        web_contect = "Here is the web search result: \n\n<search>\n\n" + search_text + "\n\n</search>\n\n"
+        web_contect = "Here is the web search result: \n\n<search>\n\n" + str(search_text) + "\n\n</search>\n\n"
         prompt = web_contect + prompt
         return prompt
     else:
