@@ -10,8 +10,11 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_community.utilities import SerpAPIWrapper
+from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.vectorstores import FAISS
 from PIL import Image, UnidentifiedImageError
 import pdfplumber
+
 
 from config import config
 from models import ChatModel
@@ -71,12 +74,11 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         
         role_select = st.selectbox(
             'Role',
-            ["Default", "Translator", "Writer", "Custom"],
+            list(role_prompt.keys()) + ["Custom"],
             key=f"{st.session_state['widget_key']}_role_Id",
         )
         # Set the initial value of the text area based on the selected role
-        role_prompt_text = role_prompt.get(role_select, "")
-
+        role_prompt_text = "" if role_select == "Custom" else role_prompt.get(role_select, "")
         st.session_state["model_name"] = model_name_select
 
         model_config = config["models"][model_name_select]
@@ -84,7 +86,6 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         system_prompt_disabled = model_config.get("system_prompt_disabled", False)
         system_prompt = st.text_area(
             "System Prompt",
-            # value=model_config.get("default_system_prompt", ""),
             value = role_prompt_text,
             key=f"{st.session_state['widget_key']}_System_Prompt",
             disabled=system_prompt_disabled,
@@ -93,17 +94,15 @@ def render_sidebar() -> Tuple[Dict, int, str]:
             col1, col2 = st.columns(2)
             with col1:   
                 web_local = st.selectbox(
-                    'Web or Local',
-                    ('Local', 'Web'),
-                    key=f"{st.session_state['widget_key']}_Web",
+                    'Options',
+                    ('Local', 'Web', 'RAG'),
+                    key=f"{st.session_state['widget_key']}_Options",
                 )     
             with col2:  
                 temperature = st.slider(
                     "Temperature",
                     min_value=0.0,
                     max_value=1.0,
-                    value=model_config.get("temperature", 1.0),
-                    step=0.1,
                     key=f"{st.session_state['widget_key']}_Temperature",
                 )
         with st.container():
@@ -367,16 +366,35 @@ def display_uploaded_files(
 
     return content_files
 
-def web_or_local(prompt: str, web_local: str) -> str:
-    if web_local == "Web":
+def rag_search(prompt: str) -> str:
+    # Initialize Bedrock embeddings
+    embeddings = BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0")
+
+    # Set the path to the directory containing the FAISS index file
+    index_directory = "faiss_index"
+
+    # Set allow_dangerous_deserialization to True, needed for loading the FAISS index.
+    allow_dangerous = True
+
+    # Load the FAISS index from the directory
+    db = FAISS.load_local(index_directory, embeddings, allow_dangerous_deserialization=allow_dangerous)
+
+    # Perform the search
+    docs = db.similarity_search(prompt)
+
+    # Format the results
+    rag_content = "Here are the RAG search results: \n\n<search>\n\n" + "\n\n".join(doc.page_content for doc in docs) + "\n\n</search>\n\n"
+    return rag_content + prompt
+
+def web_or_local(prompt: str, web_local_rag: str) -> str:
+    if web_local_rag == "Web":
         search = SerpAPIWrapper()
         search_text = search.run(prompt)
-        web_contect = "Here is the web search result: \n\n<search>\n\n" + str(search_text) + "\n\n</search>\n\n"
-        prompt = web_contect + prompt
-        return prompt
-    else:
-        return prompt
-    
+        web_content = "Here is the web search result: \n\n<search>\n\n" + search_text + "\n\n</search>\n\n"
+        prompt = web_content + prompt
+    elif web_local_rag == "RAG":
+        prompt = rag_search(prompt)
+    return prompt
 def main() -> None:
     """
     Main function to run the Streamlit app.
