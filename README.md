@@ -6,14 +6,13 @@ streamlit run bedrock/bedrock_chatbot.py
 ```
 > Note: if you're going to use web search function, add your serpapi key to bedrock/.env file~
 
-
+# 24/05/12 Updates
 ## RAG (Retrieval-Augmented Generation) Feature
 
 We have added a new feature that allows the AI model to pull in information from a large corpus of documents, providing more detailed and accurate responses. This feature uses the RAG technique, which combines the benefits of extractive and abstractive summarization.
 
 To use the RAG feature, select 'RAG' from the 'Options' dropdown in the chatbot interface.
 
-# 24/05/12 Updates
 ## Indexing Documents and Using RAG Feature
 
 To use the RAG (Retrieval-Augmented Generation) feature, you need to index your documents using the `bedrock_indexer.py` script. This script creates a FAISS index from the documents in a directory.
