@@ -1,3 +1,4 @@
+import os
 import base64
 import random
 from io import BytesIO
@@ -16,6 +17,7 @@ import pdfplumber
 from config import config
 from models import ChatModel
 from role_prompt import role_prompt
+from bedrock_embedder import index_file, search_index
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -71,12 +73,11 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         
         role_select = st.selectbox(
             'Role',
-            ["Default", "Translator", "Writer", "Custom"],
+            list(role_prompt.keys()) + ["Custom"],
             key=f"{st.session_state['widget_key']}_role_Id",
         )
         # Set the initial value of the text area based on the selected role
-        role_prompt_text = role_prompt.get(role_select, "")
-
+        role_prompt_text = "" if role_select == "Custom" else role_prompt.get(role_select, "")
         st.session_state["model_name"] = model_name_select
 
         model_config = config["models"][model_name_select]
@@ -84,7 +85,6 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         system_prompt_disabled = model_config.get("system_prompt_disabled", False)
         system_prompt = st.text_area(
             "System Prompt",
-            # value=model_config.get("default_system_prompt", ""),
             value = role_prompt_text,
             key=f"{st.session_state['widget_key']}_System_Prompt",
             disabled=system_prompt_disabled,
@@ -93,17 +93,15 @@ def render_sidebar() -> Tuple[Dict, int, str]:
             col1, col2 = st.columns(2)
             with col1:   
                 web_local = st.selectbox(
-                    'Web or Local',
-                    ('Local', 'Web'),
-                    key=f"{st.session_state['widget_key']}_Web",
+                    'Options',
+                    ('Local', 'Web', 'RAG'),
+                    key=f"{st.session_state['widget_key']}_Options",
                 )     
             with col2:  
                 temperature = st.slider(
                     "Temperature",
                     min_value=0.0,
                     max_value=1.0,
-                    value=model_config.get("temperature", 1.0),
-                    step=0.1,
                     key=f"{st.session_state['widget_key']}_Temperature",
                 )
         with st.container():
@@ -367,16 +365,26 @@ def display_uploaded_files(
 
     return content_files
 
-def web_or_local(prompt: str, web_local: str) -> str:
-    if web_local == "Web":
+def rag_search(prompt: str) -> str:
+    # Perform the search using the search_index function from bedrock_embedder.py
+    docs = search_index(prompt, "faiss_index")
+    # Check if an error message was returned
+    if isinstance(docs[0], str):
+        return docs[0]
+    # Format the results
+    rag_content = "Here are the RAG search results: \n\n<search>\n\n" + "\n\n".join(doc.page_content for doc in docs) + "\n\n</search>\n\n"
+    return rag_content + prompt
+
+def web_or_local(prompt: str, web_local_rag: str) -> str:
+    if web_local_rag == "Web":
         search = SerpAPIWrapper()
         search_text = search.run(prompt)
-        web_contect = "Here is the web search result: \n\n<search>\n\n" + str(search_text) + "\n\n</search>\n\n"
-        prompt = web_contect + prompt
-        return prompt
-    else:
-        return prompt
-    
+        web_content = "Here is the web search result: \n\n<search>\n\n" + search_text + "\n\n</search>\n\n"
+        prompt = web_content + prompt
+    elif web_local_rag == "RAG":
+        prompt = rag_search(prompt)
+    return prompt
+
 def main() -> None:
     """
     Main function to run the Streamlit app.
@@ -423,35 +431,53 @@ def main() -> None:
         and message["images"]
         for image_id in message["images"]
     ]
-
     # Show image in corresponding chat box
     uploaded_file_ids = []
     if uploaded_files and len(message_images_list) < len(uploaded_files):
         with st.chat_message("user"):
-            content_files = display_uploaded_files(
-                uploaded_files, message_images_list, uploaded_file_ids
-            )
-            
-            if prompt:
-                context_text = ""
-                context_image = []
-                prompt = web_or_local(prompt, web_local)
-                for content_file in content_files:
-                    if content_file['type'] == 'text':
-                        context_text += content_file['text'] + "\n\n"
-                    else:
-                        context_image.append(content_file)
-                
-                if context_text != "":
-                    prompt_new = f"Here is some context for you: \n<context>\n{context_text}</context>\n\n{prompt}"
-                else:
-                    prompt_new = prompt
-                    
-                formatted_prompt = chat_model.format_prompt(prompt_new) + context_image
-                st.session_state.messages.append(
-                    {"role": "user", "content": formatted_prompt, "images": uploaded_file_ids}
+            if web_local == "RAG":
+                index_path = "faiss_index"
+                # Add a button to the sidebar to trigger the indexing process
+                if st.sidebar.button('Index Files'):
+                    # Use the index_file function from bedrock_embedder.py to index the uploaded files
+                    vectorstore, docs, combined_embeddings = index_file(uploaded_files, index_path)
+                    if docs is None or combined_embeddings is None:  
+                        return
+
+                    st.success(f"{len(uploaded_files)} files indexed. Total documents in index: Total documents in index: {vectorstore.index.ntotal}")  
+                    # Clear the uploaded files list
+                    uploaded_files = []
+
+                # Allow users to chat with the AI in RAG mode
+                if prompt:
+                    prompt = web_or_local(prompt, web_local)
+                    formatted_prompt = chat_model.format_prompt(prompt)
+                    st.session_state.messages.append({"role": "user", "content": formatted_prompt})
+                    st.markdown(prompt)
+            else:
+                content_files = display_uploaded_files(
+                    uploaded_files, message_images_list, uploaded_file_ids
                 )
-                st.markdown(prompt)
+                
+                if prompt:
+                    context_text = ""
+                    context_image = []
+                    prompt = web_or_local(prompt, web_local)
+                    for content_file in content_files:
+                        if content_file['type'] == 'text':
+                            context_text += content_file['text'] + "\n\n"
+                        else:
+                            context_image.append(content_file)
+                    
+                    if context_text != "":
+                        prompt_new = f"Here is some context from your uploaded file: \n<context>\n{context_text}</context>\n\n{prompt}"
+                    else:
+                        prompt_new = prompt
+                    formatted_prompt = chat_model.format_prompt(prompt_new) + context_image
+                    st.session_state.messages.append(
+                        {"role": "user", "content": formatted_prompt, "images": uploaded_file_ids}
+                    )
+                    st.markdown(prompt)
 
     elif prompt:
         prompt = web_or_local(prompt, web_local)
