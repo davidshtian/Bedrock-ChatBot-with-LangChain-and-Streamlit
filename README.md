@@ -6,6 +6,21 @@ streamlit run bedrock/bedrock_chatbot.py
 ```
 > Note: if you're going to use web search function, add your serpapi key to bedrock/.env file~
 
+# Updates
+## Enhanced RAG (Retrieval-Augmented Generation) Feature
+
+We have significantly enhanced the RAG feature in our AI model. Now, it allows users to upload their own documents and index them either locally or on a server. 
+
+The uploaded documents are indexed and stored persistently on the chosen location. This means that the indexed documents can be reused anytime without needing to be re-uploaded or re-indexed. 
+
+Moreover, you can continually add more documents to the existing index, making the system increasingly robust and knowledgeable over time. 
+
+To use the enhanced RAG feature, select 'RAG' from the 'Options' dropdown in the chatbot interface, and follow the prompts to upload and index your documents.
+
+![Index the uploaded files](./images/index_files_RAG.png)
+
+![Search using RAG](./images/search_RAG.png)
+
 # 24/05/12 Updates
 ## RAG (Retrieval-Augmented Generation) Feature
 
