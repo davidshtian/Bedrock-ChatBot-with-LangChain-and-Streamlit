@@ -21,6 +21,13 @@ To use the enhanced RAG feature, select 'RAG' from the 'Options' dropdown in the
 
 ![Search using RAG](./images/search_RAG.png)
 
+# 24/05/12 Updates
+## RAG (Retrieval-Augmented Generation) Feature
+
+We have added a new feature that allows the AI model to pull in information from a large corpus of documents, providing more detailed and accurate responses. This feature uses the RAG technique, which combines the benefits of extractive and abstractive summarization.
+
+To use the RAG feature, select 'RAG' from the 'Options' dropdown in the chatbot interface.
+
 ## Indexing Documents and Using RAG Feature
 
 To use the RAG (Retrieval-Augmented Generation) feature, you need to index your documents using the `bedrock_indexer.py` script. This script creates a FAISS index from the documents in a directory.

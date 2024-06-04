@@ -11,8 +11,11 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_community.utilities import SerpAPIWrapper
+from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.vectorstores import FAISS
 from PIL import Image, UnidentifiedImageError
 import pdfplumber
+
 
 from config import config
 from models import ChatModel
@@ -371,6 +374,21 @@ def rag_search(prompt: str) -> str:
     # Check if an error message was returned
     if isinstance(docs[0], str):
         return docs[0]
+    # Initialize Bedrock embeddings
+    embeddings = BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0")
+
+    # Set the path to the directory containing the FAISS index file
+    index_directory = "faiss_index"
+
+    # Set allow_dangerous_deserialization to True, needed for loading the FAISS index.
+    allow_dangerous = True
+
+    # Load the FAISS index from the directory
+    db = FAISS.load_local(index_directory, embeddings, allow_dangerous_deserialization=allow_dangerous)
+
+    # Perform the search
+    docs = db.similarity_search(prompt)
+
     # Format the results
     rag_content = "Here are the RAG search results: \n\n<search>\n\n" + "\n\n".join(doc.page_content for doc in docs) + "\n\n</search>\n\n"
     return rag_content + prompt
