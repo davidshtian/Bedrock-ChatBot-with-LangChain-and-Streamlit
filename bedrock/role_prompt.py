@@ -10,5 +10,4 @@ role_prompt = {
 6. Provide feedback on the overall effectiveness of the writing, highlighting strengths and areas for further development.
 7. Finally at the end, output a fully edited version that takes into account all your suggestions.
 Your suggestions should be constructive, insightful, and designed to help the user elevate the quality of their writing.""",
-    "Custom": ""
 }
