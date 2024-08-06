@@ -1,58 +1,34 @@
-import os
 import base64
 import random
 from io import BytesIO
 from typing import List, Tuple, Union, Dict
 
 import streamlit as st
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferWindowMemory
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_community.utilities import SerpAPIWrapper
-from langchain_community.embeddings import BedrockEmbeddings
+from langchain_aws import BedrockEmbeddings
 from langchain_community.vectorstores import FAISS
 from PIL import Image, UnidentifiedImageError
 import pdfplumber
 
+from dotenv import load_dotenv
 
 from config import config
 from models import ChatModel
 from role_prompt import role_prompt
 from bedrock_embedder import index_file, search_index
 
-from dotenv import load_dotenv
+# Load the env variables
 load_dotenv()
 
 INIT_MESSAGE = {
     "role": "assistant",
     "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
 }
-
-CLAUDE_PROMPT = ChatPromptTemplate.from_messages(
-    [
-        MessagesPlaceholder(variable_name="history"),
-        MessagesPlaceholder(variable_name="input"),
-    ]
-)
-
-class StreamHandler(BaseCallbackHandler):
-    """
-    Callback handler to stream the generated text to Streamlit.
-    """
-
-    def __init__(self, container: st.container) -> None:
-        self.container = container
-        self.text = ""
-
-    def on_llm_new_token(self, token: str, **kwargs) -> None:
-        """
-        Append the new token to the text and update the Streamlit container.
-        """
-        self.text += token
-        self.container.markdown(self.text)
-
 
 def set_page_config() -> None:
     """
@@ -61,19 +37,17 @@ def set_page_config() -> None:
     st.set_page_config(page_title="🤖 Chat with Bedrock", layout="wide")
     st.title("🤖 Chat with Bedrock")
 
-
 def render_sidebar() -> Tuple[Dict, int, str]:
     """
     Render the sidebar UI and return the inference parameters.
     """
     with st.sidebar:
-        # st.markdown("## Inference Parameters")
         model_name_select = st.selectbox(
             'Model',
             list(config["models"].keys()),
             key=f"{st.session_state['widget_key']}_Model_Id",
         )
-        
+
         role_select = st.selectbox(
             'Role',
             list(role_prompt.keys()) + ["Custom"],
@@ -85,28 +59,18 @@ def render_sidebar() -> Tuple[Dict, int, str]:
 
         model_config = config["models"][model_name_select]
 
-        system_prompt_disabled = model_config.get("system_prompt_disabled", False)
         system_prompt = st.text_area(
             "System Prompt",
-            value = role_prompt_text,
-            key=f"{st.session_state['widget_key']}_System_Prompt",
-            disabled=system_prompt_disabled,
+            value=role_prompt_text,
+            key=f"{st.session_state['widget_key']}_System_Prompt"
         )
-        with st.container():
-            col1, col2 = st.columns(2)
-            with col1:   
-                web_local = st.selectbox(
-                    'Options',
-                    ('Local', 'Web', 'RAG'),
-                    key=f"{st.session_state['widget_key']}_Options",
-                )     
-            with col2:  
-                temperature = st.slider(
-                    "Temperature",
-                    min_value=0.0,
-                    max_value=1.0,
-                    key=f"{st.session_state['widget_key']}_Temperature",
-                )
+
+        web_local = st.selectbox(
+            'Options',
+            ('Local', 'Web', 'RAG'),
+            key=f"{st.session_state['widget_key']}_Options",
+        )
+
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
@@ -130,6 +94,14 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
+                temperature = st.slider(
+                    "Temperature",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.5,
+                    key=f"{st.session_state['widget_key']}_Temperature",
+                )
+            with col2:
                 max_tokens = st.slider(
                     "Max Token",
                     min_value=0,
@@ -138,44 +110,37 @@ def render_sidebar() -> Tuple[Dict, int, str]:
                     step=8,
                     key=f"{st.session_state['widget_key']}_Max_Token",
                 )
-            with col2:
-                memory_window = st.slider(
-                    "Memory Window",
-                    min_value=0,
-                    max_value=10,
-                    value=model_config.get("memory_window", 10),
-                    step=1,
-                    key=f"{st.session_state['widget_key']}_Memory_Window",
-                )
 
     model_kwargs = {
-        "temperature": temperature,
         "top_p": top_p,
         "top_k": top_k,
-        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "max_tokens": max_tokens
     }
-    if not model_config.get("system_prompt_disabled", False):
-        model_kwargs["system"] = system_prompt
 
+    return model_kwargs, system_prompt, web_local
 
-    return model_kwargs, memory_window, web_local
-
-
-def init_conversationchain(chat_model: ChatModel, memory_window: int) -> ConversationChain:
+def init_runnablewithmessagehistory(system_prompt: str, chat_model: ChatModel) -> RunnableWithMessageHistory:
     """
-    Initialize the ConversationChain with the given parameters.
+    Initialize the RunnableWithMessageHistory with the given parameters.
     """
-    conversation = ConversationChain(
-        llm=chat_model.llm,
-        verbose=True,
-        memory=ConversationBufferWindowMemory(
-            k=memory_window,
-            ai_prefix="Assistant",
-            chat_memory=StreamlitChatMessageHistory(),
-            return_messages=True,
-        ),
-        prompt=CLAUDE_PROMPT,
-    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        MessagesPlaceholder(variable_name="query"),
+    ])
+
+    chain = prompt | chat_model.llm
+
+    msgs = StreamlitChatMessageHistory()
+
+    # Create chain with history
+    conversation = RunnableWithMessageHistory(
+        chain,
+        lambda session_id: msgs,
+        input_messages_key="query",
+        history_messages_key="chat_history"
+    ) | StrOutputParser()
 
     # Store LLM generated responses
     if "messages" not in st.session_state:
@@ -183,26 +148,30 @@ def init_conversationchain(chat_model: ChatModel, memory_window: int) -> Convers
 
     return conversation
 
-
 def generate_response(
-    conversation: ConversationChain, input: Union[str, List[dict]]
+    conversation: RunnableWithMessageHistory, input: Union[str, List[dict]]
 ) -> str:
     """
     Generate a response from the conversation chain with the given input.
     """
-    return conversation.invoke(
-        {"input": input}, {"callbacks": [StreamHandler(st.empty())]}
+    config = {"configurable": {"session_id": "streamlit_chat"}}
+
+    generate_response_stream = conversation.stream(
+        {"query": input},
+        config=config
     )
 
+    generate_response = st.write_stream(generate_response_stream)
+
+    return generate_response
 
 def new_chat() -> None:
     """
-    Reset the chat session and initialize a new conversation chain.
+    Reset the chat session and initialize a new RunnableWithMessageHistory.
     """
     st.session_state["messages"] = [INIT_MESSAGE]
     st.session_state["langchain_messages"] = []
     st.session_state["file_uploader_key"] = random.randint(1, 100)
-
 
 def display_chat_messages(
     uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile]
@@ -220,7 +189,6 @@ def display_chat_messages(
 
             if message["role"] == "assistant":
                 display_assistant_message(message["content"])
-
 
 def display_images(
     image_ids: List[str],
@@ -252,7 +220,6 @@ def display_images(
                         st.write(f"📄 Uploaded text file: {uploaded_file.name}")
                 elif uploaded_file.type == 'application/pdf':
                     st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
-                    
 
 def display_user_message(message_content: Union[str, List[dict]]) -> None:
     """
@@ -268,7 +235,6 @@ def display_user_message(message_content: Union[str, List[dict]]) -> None:
     message_content_markdown = message_text.split('</context>\n\n', 1)[-1]
     st.markdown(message_content_markdown)
 
-
 def display_assistant_message(message_content: Union[str, dict]) -> None:
     """
     Display assistant message in the chat message.
@@ -278,23 +244,14 @@ def display_assistant_message(message_content: Union[str, dict]) -> None:
     elif "response" in message_content:
         st.markdown(message_content["response"])
 
-
-def langchain_messages_format(
-    messages: List[Union["AIMessage", "HumanMessage"]]
-) -> List[Union["AIMessage", "HumanMessage"]]:
+def langchain_messages_format(messages):
     """
-    Format the messages for the LangChain conversation chain.
+    Format the messages for the LangChain RunnableWithMessageHistory.
     """
-    from langchain_core.messages import AIMessage, HumanMessage
-
     for i, message in enumerate(messages):
-        if isinstance(message.content, list):
-            if "role" in message.content[0]:
-                if message.type == "ai":
-                    message = AIMessage(message.content[0]["content"])
-                if message.type == "human":
-                    message = HumanMessage(message.content[0]["content"])
-                messages[i] = message
+        if type(message) == type({}):
+            message = HumanMessage(str(message))
+            messages[i] = message
     return messages
 
 def display_uploaded_files(
@@ -416,9 +373,9 @@ def main() -> None:
     # Add a button to start a new chat
     st.sidebar.button("New Chat", on_click=new_chat, type="primary")
 
-    model_kwargs, memory_window, web_local = render_sidebar()
+    model_kwargs, system_prompt, web_local = render_sidebar()
     chat_model = ChatModel(st.session_state["model_name"], model_kwargs)
-    conv_chain = init_conversationchain(chat_model, memory_window)
+    runnable_with_messagehistory = init_runnablewithmessagehistory(system_prompt, chat_model)
 
     # Image uploader
     if "file_uploader_key" not in st.session_state:
@@ -468,10 +425,9 @@ def main() -> None:
 
                 # Allow users to chat with the AI in RAG mode
                 if prompt:
-                    prompt = web_or_local(prompt, web_local)
-                    formatted_prompt = chat_model.format_prompt(prompt)
+                    formatted_prompt = web_or_local(prompt, web_local)
                     st.session_state.messages.append({"role": "user", "content": formatted_prompt})
-                    st.markdown(prompt)
+                    st.markdown(formatted_prompt)
             else:
                 content_files = display_uploaded_files(
                     uploaded_files, message_images_list, uploaded_file_ids
@@ -491,29 +447,28 @@ def main() -> None:
                         prompt_new = f"Here is some context from your uploaded file: \n<context>\n{context_text}</context>\n\n{prompt}"
                     else:
                         prompt_new = prompt
-                    formatted_prompt = chat_model.format_prompt(prompt_new) + context_image
+                    formatted_prompt = [{"type": "text", "text": prompt_new}] + context_image
                     st.session_state.messages.append(
-                        {"role": "user", "content": formatted_prompt, "images": uploaded_file_ids}
+                        {"role": "user", "content": prompt_new, "images": uploaded_file_ids}
                     )
                     st.markdown(prompt)
 
     elif prompt:
-        prompt = web_or_local(prompt, web_local)
-        formatted_prompt = chat_model.format_prompt(prompt)
+        formatted_prompt = web_or_local(prompt, web_local)
         st.session_state.messages.append({"role": "user", "content": formatted_prompt})
         with st.chat_message("user"):
-            st.markdown(prompt)
+            st.markdown(formatted_prompt)
 
     # Modify langchain_messages format
     st.session_state["langchain_messages"] = langchain_messages_format(
         st.session_state["langchain_messages"]
     )
-
+    
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             response = generate_response(
-                conv_chain, [{"role": "user", "content": formatted_prompt}]
+                runnable_with_messagehistory, [{"role": "user", "content": formatted_prompt}]
             )
         message = {"role": "assistant", "content": response}
         st.session_state.messages.append(message)
