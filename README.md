@@ -1,4 +1,4 @@
-# Bedrock ChatBot with LangChain and Streamlit 💬 
+# Bedrock ChatBot with LangChain and Streamlit (New Converse API) 💬 
 A simple and clear example for implement a chatbot with Bedrock + LangChain + Streamlit. Just install and run the code~ 🚀
 ```
 pip install -r requirements.txt
