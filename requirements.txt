@@ -1,5 +1,6 @@
-langchain==0.1.12
-streamlit==1.33.0
+langchain
+langchain-aws
+streamlit
 boto3
 pdfplumber
 python-dotenv
