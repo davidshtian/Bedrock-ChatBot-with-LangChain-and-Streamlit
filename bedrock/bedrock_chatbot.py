@@ -244,16 +244,6 @@ def display_assistant_message(message_content: Union[str, dict]) -> None:
     elif "response" in message_content:
         st.markdown(message_content["response"])
 
-def langchain_messages_format(messages):
-    """
-    Format the messages for the LangChain RunnableWithMessageHistory.
-    """
-    for i, message in enumerate(messages):
-        if type(message) == type({}):
-            message = HumanMessage(str(message))
-            messages[i] = message
-    return messages
-
 def display_uploaded_files(
     uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile],
     message_images_list: List[str],
@@ -276,17 +266,16 @@ def display_uploaded_files(
                 img = Image.open(uploaded_file)
                 with BytesIO() as output_buffer:
                     img.save(output_buffer, format=img.format)
-                    content_image = base64.b64encode(output_buffer.getvalue()).decode(
-                        "utf8"
-                    )
+                    content_image = output_buffer.getvalue()
+
                 content_files.append(
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": content_image,
-                        },
+                        "image": {
+                            "format": img.format.lower(),
+                            "source": {
+                                "bytes": content_image
+                            }
+                        }
                     }
                 )
                 with cols[i]:
@@ -438,16 +427,16 @@ def main() -> None:
                     context_image = []
                     prompt = web_or_local(prompt, web_local)
                     for content_file in content_files:
-                        if content_file['type'] == 'text':
-                            context_text += content_file['text'] + "\n\n"
-                        else:
+                        if "image" in content_file.keys():
                             context_image.append(content_file)
+                        else:
+                            context_text += content_file['text'] + "\n\n"
                     
                     if context_text != "":
                         prompt_new = f"Here is some context from your uploaded file: \n<context>\n{context_text}</context>\n\n{prompt}"
                     else:
                         prompt_new = prompt
-                    formatted_prompt = [{"type": "text", "text": prompt_new}] + context_image
+                    formatted_prompt = [{"text": prompt_new}] + context_image
                     st.session_state.messages.append(
                         {"role": "user", "content": prompt_new, "images": uploaded_file_ids}
                     )
@@ -458,17 +447,12 @@ def main() -> None:
         st.session_state.messages.append({"role": "user", "content": formatted_prompt})
         with st.chat_message("user"):
             st.markdown(formatted_prompt)
-
-    # Modify langchain_messages format
-    st.session_state["langchain_messages"] = langchain_messages_format(
-        st.session_state["langchain_messages"]
-    )
     
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             response = generate_response(
-                runnable_with_messagehistory, [{"role": "user", "content": formatted_prompt}]
+                runnable_with_messagehistory, [{"role": "user",  "content": formatted_prompt}]
             )
         message = {"role": "assistant", "content": response}
         st.session_state.messages.append(message)
