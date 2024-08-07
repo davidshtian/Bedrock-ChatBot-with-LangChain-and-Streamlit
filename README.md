@@ -4,7 +4,10 @@ A simple and clear example for implement a chatbot with Bedrock + LangChain + St
 pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
-> Note: if you're going to use web search function, add your serpapi key to bedrock/.env file~
+
+<img width="1910" alt="image" src="https://github.com/user-attachments/assets/11120641-a776-4c06-a3b6-c5df75543214">
+
+> Note: if you're going to use web search function, add your SERPAPI key and AWS region to bedrock/.env file~
 
 # Updates
 ## Enhanced RAG (Retrieval-Augmented Generation) Feature
