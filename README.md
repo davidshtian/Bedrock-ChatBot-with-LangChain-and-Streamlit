@@ -10,7 +10,7 @@ Demo:
 
 > Note: if you're going to use web search function, add your SERPAPI key and AWS region to bedrock/.env file~
 
-> Tips: you could modify retry mode for model access in case rate limit
+> Tips: you could modify retry mode in AWS profile config for model access in case rate limit
 > ```
 > [default]
 > max_attempts = 10
