@@ -8,6 +8,15 @@ models:
     max_tokens: 4096
     memory_window: 10
     max_top_k: 500
+    Claude 3.5 Sonnet v2:
+    model_id: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    input_format: "text"
+    temperature: 1.0
+    top_p: 1.0
+    top_k: 500
+    max_tokens: 4096
+    memory_window: 10
+    max_top_k: 500
   Claude 3 Haiku:
     model_id: "anthropic.claude-3-haiku-20240307-v1:0"
     input_format: "text"

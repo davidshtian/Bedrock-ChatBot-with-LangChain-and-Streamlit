@@ -50,7 +50,7 @@ def render_sidebar() -> Tuple[Dict, int, str]:
 
         role_select = st.selectbox(
             'Role',
-            list(role_prompt.keys()) + ["Custom"],
+            ["Custom"] + list(role_prompt.keys()),
             key=f"{st.session_state['widget_key']}_role_Id",
         )
         # Set the initial value of the text area based on the selected role
