@@ -1,9 +1,10 @@
 import random
 from io import BytesIO
-from typing import List, Tuple, Union, Dict
+from typing import List, Tuple, Union, Dict, Any
 
 import streamlit as st
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
+from langchain_core.runnables import RunnableLambda
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
@@ -123,6 +124,70 @@ def render_sidebar() -> Tuple[Dict, int, str]:
     return model_kwargs, system_prompt, web_local
 
 
+def extract_reasoning_and_text(input: Any) -> str:
+    """
+    Extracts reasoning content and normal text from the LLM's output and combines them into a single string.
+    Wraps the reasoning content in triple backticks like a code block.
+    Handles both streaming and non-streaming inputs.
+
+    Args:
+        input: The LLM's output (e.g., an AIMessage object with a content attribute)
+
+    Returns:
+        A string with reasoning (in code block) followed by normal text, or yields chunks for streaming
+    """
+    # Handle streaming case
+    if hasattr(input, "__iter__") and not isinstance(input, (str, dict)):
+        in_reasoning_block = False
+        first_reasoning = True
+        
+        for chunk in input:
+            content = chunk.content if hasattr(chunk, "content") else chunk
+            if isinstance(content, list):
+                for item in content:
+                    if item.get("type") == "reasoning_content":
+                        reasoning_text = item.get("reasoning_content", {}).get("text", "")
+                        if reasoning_text:
+                            if not in_reasoning_block:
+                                yield "```\n"
+                                in_reasoning_block = True
+                            yield reasoning_text
+                    elif item.get("type") == "text":
+                        text = item.get("text", "")
+                        if text:
+                            if in_reasoning_block:
+                                yield "\n```\n"
+                                in_reasoning_block = False
+                            yield text
+            else:
+                if in_reasoning_block:
+                    yield "\n```\n"
+                    in_reasoning_block = False
+                yield content
+
+        if in_reasoning_block:
+            yield "\n```"
+        return
+
+    # Handle non-streaming case
+    content = input.content if hasattr(input, "content") else input
+    reasoning = ""
+    normal_text = ""
+
+    if isinstance(content, list):
+        for item in content:
+            if item.get("type") == "reasoning_content":
+                reasoning_content = item.get("reasoning_content", {})
+                raw_reasoning = reasoning_content.get("text", "")
+                if raw_reasoning:
+                    reasoning = f"```\n{raw_reasoning}\n```"
+            elif item.get("type") == "text":
+                normal_text = item.get("text", "")
+    else:
+        normal_text = content
+
+    return f"{reasoning}\n\n{normal_text}" if reasoning else normal_text
+
 def init_runnablewithmessagehistory(
     system_prompt: str, chat_model: ChatModel
 ) -> RunnableWithMessageHistory:
@@ -142,15 +207,12 @@ def init_runnablewithmessagehistory(
     msgs = StreamlitChatMessageHistory()
 
     # Create chain with history
-    conversation = (
-        RunnableWithMessageHistory(
-            chain,
-            lambda session_id: msgs,
-            input_messages_key="query",
-            history_messages_key="chat_history",
-        )
-        | StrOutputParser()
-    )
+    conversation = RunnableWithMessageHistory(
+        chain,
+        lambda session_id: msgs,
+        input_messages_key="query",
+        history_messages_key="chat_history",
+    ) | extract_reasoning_and_text
 
     # Store LLM generated responses
     if "messages" not in st.session_state:
