@@ -4,9 +4,9 @@ A simple and clear example for implement a chatbot with Bedrock + LangChain + St
 pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
-
-Demo:
-<img width="1902" alt="image" src="https://github.com/user-attachments/assets/9cad1ea5-9acc-4ef4-af7a-e3df9e2ce025" />
+# 25/03/06 Updates
+## Thinking/Reasoning Feature
+<img width="1425" alt="image" src="https://github.com/user-attachments/assets/d2d2d0a8-1b3e-46ee-9705-87ba66573b00" />
 
 > Note: if you're going to use web search function, add your SERPAPI key and AWS region to bedrock/.env file~
 
