@@ -3,9 +3,8 @@ from io import BytesIO
 from typing import List, Tuple, Union, Dict, Any
 
 import streamlit as st
-from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
-from langchain_core.runnables import RunnableLambda
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda, RunnableWithMessageHistory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_community.utilities import SerpAPIWrapper
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from config import config
 from models import ChatModel
 from role_prompt import role_prompt
-from bedrock_embedder import index_file, search_index
+from bedrock_embedder import search_index
 
 # Load the env variables
 load_dotenv()
@@ -101,7 +100,7 @@ def render_sidebar() -> Tuple[Dict, int, str]:
                     "Temperature",
                     min_value=0.0,
                     max_value=1.0,
-                    value=0.5,
+                    value=model_config.get("temperature", 1.0),
                     key=f"{st.session_state['widget_key']}_Temperature",
                 )
             with col2:
@@ -136,11 +135,8 @@ def extract_reasoning_and_text(input: Any) -> str:
     Returns:
         A string with reasoning (in code block) followed by normal text, or yields chunks for streaming
     """
-    # Handle streaming case
     if hasattr(input, "__iter__") and not isinstance(input, (str, dict)):
         in_reasoning_block = False
-        first_reasoning = True
-        
         for chunk in input:
             content = chunk.content if hasattr(chunk, "content") else chunk
             if isinstance(content, list):
@@ -152,41 +148,31 @@ def extract_reasoning_and_text(input: Any) -> str:
                                 yield "```\n"
                                 in_reasoning_block = True
                             yield reasoning_text
-                    elif item.get("type") == "text":
-                        text = item.get("text", "")
-                        if text:
-                            if in_reasoning_block:
-                                yield "\n```\n"
-                                in_reasoning_block = False
-                            yield text
+                    elif item.get("type") == "text" and (text := item.get("text")):
+                        if in_reasoning_block:
+                            yield "\n```\n"
+                            in_reasoning_block = False
+                        yield text
             else:
                 if in_reasoning_block:
                     yield "\n```\n"
                     in_reasoning_block = False
                 yield content
-
         if in_reasoning_block:
             yield "\n```"
         return
 
-    # Handle non-streaming case
     content = input.content if hasattr(input, "content") else input
-    reasoning = ""
-    normal_text = ""
-
     if isinstance(content, list):
-        for item in content:
-            if item.get("type") == "reasoning_content":
-                reasoning_content = item.get("reasoning_content", {})
-                raw_reasoning = reasoning_content.get("text", "")
-                if raw_reasoning:
-                    reasoning = f"```\n{raw_reasoning}\n```"
-            elif item.get("type") == "text":
-                normal_text = item.get("text", "")
-    else:
-        normal_text = content
-
-    return f"{reasoning}\n\n{normal_text}" if reasoning else normal_text
+        reasoning = next((f"```\n{item['reasoning_content']['text']}\n```" 
+                        for item in content 
+                        if item.get("type") == "reasoning_content" 
+                        and item.get("reasoning_content", {}).get("text")), "")
+        normal_text = next((item.get("text", "") 
+                          for item in content 
+                          if item.get("type") == "text"), "")
+        return f"{reasoning}\n\n{normal_text}" if reasoning else normal_text
+    return content
 
 def init_runnablewithmessagehistory(
     system_prompt: str, chat_model: ChatModel
@@ -194,24 +180,16 @@ def init_runnablewithmessagehistory(
     """
     Initialize the RunnableWithMessageHistory with the given parameters.
     """
-    prompt = ChatPromptTemplate.from_messages(
-        [
+    msgs = StreamlitChatMessageHistory()
+    conversation = RunnableWithMessageHistory(
+        ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
             MessagesPlaceholder(variable_name="query"),
-        ]
-    )
-
-    chain = prompt | chat_model.llm
-
-    msgs = StreamlitChatMessageHistory()
-
-    # Create chain with history
-    conversation = RunnableWithMessageHistory(
-        chain,
+        ]) | chat_model.llm,
         lambda session_id: msgs,
         input_messages_key="query",
-        history_messages_key="chat_history",
+        history_messages_key="chat_history"
     ) | extract_reasoning_and_text
 
     # Store LLM generated responses
@@ -227,13 +205,10 @@ def generate_response(
     """
     Generate a response from the conversation chain with the given input.
     """
-    config = {"configurable": {"session_id": "streamlit_chat"}}
-
-    generate_response_stream = conversation.stream({"query": input}, config=config)
-
-    generate_response = st.write_stream(generate_response_stream)
-
-    return generate_response
+    return st.write_stream(conversation.stream(
+        {"query": input}, 
+        config={"configurable": {"session_id": "streamlit_chat"}}
+    ))
 
 
 def new_chat() -> None:

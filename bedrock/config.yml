@@ -58,13 +58,3 @@ models:
     max_tokens: 5000
     memory_window: 10
     max_top_k: 128
-  Mistral Large 2:
-    model_id: "mistral.mistral-large-2407-v1:0"
-    input_format: "text"
-    thinking: 0
-    temperature: 1.0
-    top_p: 1.0
-    top_k: 200
-    max_tokens: 4096
-    memory_window: 10
-    max_top_k: 200
