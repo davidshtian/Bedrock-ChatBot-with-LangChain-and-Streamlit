@@ -1,16 +1,27 @@
 models:
+  Claude 3.7 Sonnet Reasoning:
+    model_id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0" 
+    input_format: "multimodal"
+    thinking: 1
+    temperature: 1.0
+    top_k: 500
+    max_tokens: 64000
+    memory_window: 10
+    max_top_k: 500
   Claude 3.7 Sonnet:
     model_id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0" 
     input_format: "multimodal"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 500
-    max_tokens: 8192
+    max_tokens: 64000
     memory_window: 10
     max_top_k: 500
   Claude 3.5 Haiku:
     model_id: "anthropic.claude-3-5-haiku-20241022-v1:0"
     input_format: "multimodal"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 500
@@ -20,6 +31,7 @@ models:
   Amazon Nova Pro:
     model_id: "us.amazon.nova-pro-v1:0"
     input_format: "multimodal"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 128
@@ -29,6 +41,7 @@ models:
   Amazon Nova Lite:
     model_id: "us.amazon.nova-lite-v1:0"
     input_format: "multimodal"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 128
@@ -38,6 +51,7 @@ models:
   Amazon Nova Micro:
     model_id: "us.amazon.nova-micro-v1:0"
     input_format: "text"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 128
@@ -47,6 +61,7 @@ models:
   Mistral Large 2:
     model_id: "mistral.mistral-large-2407-v1:0"
     input_format: "text"
+    thinking: 0
     temperature: 1.0
     top_p: 1.0
     top_k: 200

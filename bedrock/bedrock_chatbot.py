@@ -1,10 +1,8 @@
-import base64
 import random
 from io import BytesIO
 from typing import List, Tuple, Union, Dict
 
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
@@ -30,6 +28,7 @@ INIT_MESSAGE = {
     "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
 }
 
+
 def set_page_config() -> None:
     """
     Set the Streamlit page configuration.
@@ -37,24 +36,27 @@ def set_page_config() -> None:
     st.set_page_config(page_title="🤖 Chat with Bedrock", layout="wide")
     st.title("🤖 Chat with Bedrock")
 
+
 def render_sidebar() -> Tuple[Dict, int, str]:
     """
     Render the sidebar UI and return the inference parameters.
     """
     with st.sidebar:
         model_name_select = st.selectbox(
-            'Model',
+            "Model",
             list(config["models"].keys()),
             key=f"{st.session_state['widget_key']}_Model_Id",
         )
 
         role_select = st.selectbox(
-            'Role',
+            "Role",
             ["Custom"] + list(role_prompt.keys()),
             key=f"{st.session_state['widget_key']}_role_Id",
         )
         # Set the initial value of the text area based on the selected role
-        role_prompt_text = "" if role_select == "Custom" else role_prompt.get(role_select, "")
+        role_prompt_text = (
+            "" if role_select == "Custom" else role_prompt.get(role_select, "")
+        )
         st.session_state["model_name"] = model_name_select
 
         model_config = config["models"][model_name_select]
@@ -62,12 +64,12 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         system_prompt = st.text_area(
             "System Prompt",
             value=role_prompt_text,
-            key=f"{st.session_state['widget_key']}_System_Prompt"
+            key=f"{st.session_state['widget_key']}_System_Prompt",
         )
 
         web_local = st.selectbox(
-            'Options',
-            ('Local', 'Web', 'RAG'),
+            "Options",
+            ("Local", "Web", "RAG"),
             key=f"{st.session_state['widget_key']}_Options",
         )
 
@@ -115,38 +117,47 @@ def render_sidebar() -> Tuple[Dict, int, str]:
         "top_p": top_p,
         "top_k": top_k,
         "temperature": temperature,
-        "max_tokens": max_tokens
+        "max_tokens": max_tokens,
     }
 
     return model_kwargs, system_prompt, web_local
 
-def init_runnablewithmessagehistory(system_prompt: str, chat_model: ChatModel) -> RunnableWithMessageHistory:
+
+def init_runnablewithmessagehistory(
+    system_prompt: str, chat_model: ChatModel
+) -> RunnableWithMessageHistory:
     """
     Initialize the RunnableWithMessageHistory with the given parameters.
     """
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder(variable_name="chat_history"),
-        MessagesPlaceholder(variable_name="query"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="chat_history"),
+            MessagesPlaceholder(variable_name="query"),
+        ]
+    )
 
     chain = prompt | chat_model.llm
 
     msgs = StreamlitChatMessageHistory()
 
     # Create chain with history
-    conversation = RunnableWithMessageHistory(
-        chain,
-        lambda session_id: msgs,
-        input_messages_key="query",
-        history_messages_key="chat_history"
-    ) | StrOutputParser()
+    conversation = (
+        RunnableWithMessageHistory(
+            chain,
+            lambda session_id: msgs,
+            input_messages_key="query",
+            history_messages_key="chat_history",
+        )
+        | StrOutputParser()
+    )
 
     # Store LLM generated responses
     if "messages" not in st.session_state:
         st.session_state.messages = [INIT_MESSAGE]
 
     return conversation
+
 
 def generate_response(
     conversation: RunnableWithMessageHistory, input: Union[str, List[dict]]
@@ -156,14 +167,12 @@ def generate_response(
     """
     config = {"configurable": {"session_id": "streamlit_chat"}}
 
-    generate_response_stream = conversation.stream(
-        {"query": input},
-        config=config
-    )
+    generate_response_stream = conversation.stream({"query": input}, config=config)
 
     generate_response = st.write_stream(generate_response_stream)
 
     return generate_response
+
 
 def new_chat() -> None:
     """
@@ -173,8 +182,9 @@ def new_chat() -> None:
     st.session_state["langchain_messages"] = []
     st.session_state["file_uploader_key"] = random.randint(1, 100)
 
+
 def display_chat_messages(
-    uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile]
+    uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile],
 ) -> None:
     """
     Display chat messages and uploaded images in the Streamlit app.
@@ -190,6 +200,7 @@ def display_chat_messages(
             if message["role"] == "assistant":
                 display_assistant_message(message["content"])
 
+
 def display_images(
     image_ids: List[str],
     uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile],
@@ -204,7 +215,7 @@ def display_images(
     for image_id in image_ids:
         for uploaded_file in uploaded_files:
             if image_id == uploaded_file.file_id:
-                if uploaded_file.type.startswith('image/'):
+                if uploaded_file.type.startswith("image/"):
                     img = Image.open(uploaded_file)
 
                     with cols[i]:
@@ -213,13 +224,18 @@ def display_images(
 
                     if i >= num_cols:
                         i = 0
-                elif uploaded_file.type in ['text/plain', 'text/csv', 'text/x-python-script']:
-                    if uploaded_file.type == 'text/x-python-script':
+                elif uploaded_file.type in [
+                    "text/plain",
+                    "text/csv",
+                    "text/x-python-script",
+                ]:
+                    if uploaded_file.type == "text/x-python-script":
                         st.write(f"🐍 Uploaded Python file: {uploaded_file.name}")
                     else:
                         st.write(f"📄 Uploaded text file: {uploaded_file.name}")
-                elif uploaded_file.type == 'application/pdf':
+                elif uploaded_file.type == "application/pdf":
                     st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
+
 
 def display_user_message(message_content: Union[str, List[dict]]) -> None:
     """
@@ -232,8 +248,9 @@ def display_user_message(message_content: Union[str, List[dict]]) -> None:
     else:
         message_text = message_content[0]["text"]
 
-    message_content_markdown = message_text.split('</context>\n\n', 1)[-1]
+    message_content_markdown = message_text.split("</context>\n\n", 1)[-1]
     st.markdown(message_content_markdown)
+
 
 def display_assistant_message(message_content: Union[str, dict]) -> None:
     """
@@ -243,6 +260,7 @@ def display_assistant_message(message_content: Union[str, dict]) -> None:
         st.markdown(message_content)
     elif "response" in message_content:
         st.markdown(message_content["response"])
+
 
 def display_uploaded_files(
     uploaded_files: List[st.runtime.uploaded_file_manager.UploadedFile],
@@ -272,9 +290,7 @@ def display_uploaded_files(
                     {
                         "image": {
                             "format": img.format.lower(),
-                            "source": {
-                                "bytes": content_image
-                            }
+                            "source": {"bytes": content_image},
                         }
                     }
                 )
@@ -285,34 +301,33 @@ def display_uploaded_files(
                     i = 0
             except UnidentifiedImageError:
                 # If not an image, try to read as a text or pdf file
-                if uploaded_file.type in ['text/plain', 'text/csv', 'text/x-python-script']:
+                if uploaded_file.type in [
+                    "text/plain",
+                    "text/csv",
+                    "text/x-python-script",
+                ]:
                     # Ensure we're at the start of the file
                     uploaded_file.seek(0)
                     # Read file line by line
                     lines = uploaded_file.readlines()
-                    text = ''.join(line.decode() for line in lines)
-                    content_files.append({
-                        "type": "text",
-                        "text": text
-                    })
-                    if uploaded_file.type == 'text/x-python-script':
+                    text = "".join(line.decode() for line in lines)
+                    content_files.append({"type": "text", "text": text})
+                    if uploaded_file.type == "text/x-python-script":
                         st.write(f"🐍 Uploaded Python file: {uploaded_file.name}")
                     else:
                         st.write(f"📄 Uploaded text file: {uploaded_file.name}")
-                elif uploaded_file.type == 'application/pdf':
+                elif uploaded_file.type == "application/pdf":
                     # Read pdf file
                     pdf_file = pdfplumber.open(uploaded_file)
                     page_text = ""
                     for page in pdf_file.pages:
                         page_text += page.extract_text()
-                    content_files.append({
-                        "type": "text",
-                        "text": page_text
-                    })
+                    content_files.append({"type": "text", "text": page_text})
                     st.write(f"📑 Uploaded PDF file: {uploaded_file.name}")
                     pdf_file.close()
 
     return content_files
+
 
 def rag_search(prompt: str) -> str:
     # Perform the search using the search_index function from bedrock_embedder.py
@@ -330,24 +345,36 @@ def rag_search(prompt: str) -> str:
     allow_dangerous = True
 
     # Load the FAISS index from the directory
-    db = FAISS.load_local(index_directory, embeddings, allow_dangerous_deserialization=allow_dangerous)
+    db = FAISS.load_local(
+        index_directory, embeddings, allow_dangerous_deserialization=allow_dangerous
+    )
 
     # Perform the search
     docs = db.similarity_search(prompt)
 
     # Format the results
-    rag_content = "Here are the RAG search results: \n\n<search>\n\n" + "\n\n".join(doc.page_content for doc in docs) + "\n\n</search>\n\n"
+    rag_content = (
+        "Here are the RAG search results: \n\n<search>\n\n"
+        + "\n\n".join(doc.page_content for doc in docs)
+        + "\n\n</search>\n\n"
+    )
     return rag_content + prompt
+
 
 def web_or_local(prompt: str, web_local_rag: str) -> str:
     if web_local_rag == "Web":
         search = SerpAPIWrapper()
         search_text = search.run(prompt)
-        web_content = "Here is the web search result: \n\n<search>\n\n" + search_text + "\n\n</search>\n\n"
+        web_content = (
+            "Here is the web search result: \n\n<search>\n\n"
+            + search_text
+            + "\n\n</search>\n\n"
+        )
         prompt = web_content + prompt
     elif web_local_rag == "RAG":
         prompt = rag_search(prompt)
     return prompt
+
 
 def main() -> None:
     """
@@ -364,14 +391,18 @@ def main() -> None:
 
     model_kwargs, system_prompt, web_local = render_sidebar()
     chat_model = ChatModel(st.session_state["model_name"], model_kwargs)
-    runnable_with_messagehistory = init_runnablewithmessagehistory(system_prompt, chat_model)
+    runnable_with_messagehistory = init_runnablewithmessagehistory(
+        system_prompt, chat_model
+    )
 
     # Image uploader
     if "file_uploader_key" not in st.session_state:
         st.session_state["file_uploader_key"] = 0
 
     model_config = config["models"][st.session_state["model_name"]]
-    image_upload_disabled = True if model_config.get("input_format") == "text" else False
+    image_upload_disabled = (
+        True if model_config.get("input_format") == "text" else False
+    )
     uploaded_files = st.file_uploader(
         "Choose a file",
         type=["jpg", "jpeg", "png", "txt", "pdf", "csv", "py"],
@@ -390,9 +421,7 @@ def main() -> None:
     message_images_list = [
         image_id
         for message in st.session_state.messages
-        if message["role"] == "user"
-        and "images" in message
-        and message["images"]
+        if message["role"] == "user" and "images" in message and message["images"]
         for image_id in message["images"]
     ]
     # Show image in corresponding chat box
@@ -402,26 +431,32 @@ def main() -> None:
             if web_local == "RAG":
                 index_path = "faiss_index"
                 # Add a button to the sidebar to trigger the indexing process
-                if st.sidebar.button('Index Files'):
+                if st.sidebar.button("Index Files"):
                     # Use the index_file function from bedrock_embedder.py to index the uploaded files
-                    vectorstore, docs, combined_embeddings = index_file(uploaded_files, index_path)
-                    if docs is None or combined_embeddings is None:  
+                    vectorstore, docs, combined_embeddings = index_file(
+                        uploaded_files, index_path
+                    )
+                    if docs is None or combined_embeddings is None:
                         return
 
-                    st.success(f"{len(uploaded_files)} files indexed. Total documents in index: Total documents in index: {vectorstore.index.ntotal}")  
+                    st.success(
+                        f"{len(uploaded_files)} files indexed. Total documents in index: Total documents in index: {vectorstore.index.ntotal}"
+                    )
                     # Clear the uploaded files list
                     uploaded_files = []
 
                 # Allow users to chat with the AI in RAG mode
                 if prompt:
                     formatted_prompt = web_or_local(prompt, web_local)
-                    st.session_state.messages.append({"role": "user", "content": formatted_prompt})
+                    st.session_state.messages.append(
+                        {"role": "user", "content": formatted_prompt}
+                    )
                     st.markdown(formatted_prompt)
             else:
                 content_files = display_uploaded_files(
                     uploaded_files, message_images_list, uploaded_file_ids
                 )
-                
+
                 if prompt:
                     context_text = ""
                     context_image = []
@@ -430,15 +465,19 @@ def main() -> None:
                         if "image" in content_file.keys():
                             context_image.append(content_file)
                         else:
-                            context_text += content_file['text'] + "\n\n"
-                    
+                            context_text += content_file["text"] + "\n\n"
+
                     if context_text != "":
                         prompt_new = f"Here is some context from your uploaded file: \n<context>\n{context_text}</context>\n\n{prompt}"
                     else:
                         prompt_new = prompt
                     formatted_prompt = [{"text": prompt_new}] + context_image
                     st.session_state.messages.append(
-                        {"role": "user", "content": prompt_new, "images": uploaded_file_ids}
+                        {
+                            "role": "user",
+                            "content": prompt_new,
+                            "images": uploaded_file_ids,
+                        }
                     )
                     st.markdown(prompt)
 
@@ -447,12 +486,13 @@ def main() -> None:
         st.session_state.messages.append({"role": "user", "content": formatted_prompt})
         with st.chat_message("user"):
             st.markdown(formatted_prompt)
-    
+
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             response = generate_response(
-                runnable_with_messagehistory, [{"role": "user",  "content": formatted_prompt}]
+                runnable_with_messagehistory,
+                [{"role": "user", "content": formatted_prompt}],
             )
         message = {"role": "assistant", "content": response}
         st.session_state.messages.append(message)
