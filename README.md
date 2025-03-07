@@ -62,15 +62,12 @@ python bedrock_indexer.py
 <img width="1439" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/080daef6-6fbf-413a-b08b-a6d75a665f66">
 
 # 24/04/05 Updates
-**1. Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
+**Add Dockfile for container enviroment and remove the packages installation!** 🎉🎉🎉
 
 You could build your own, and I've also uploaded a public container image at public.ecr.aws for you~
 ```
 docker run -d -v $HOME/.aws/config:/root/.aws/config:ro -p 8502:8501 public.ecr.aws/shtian/bedrock-claude-3-langchain-streamlit:latest
 ```
-
-**2. NEW! Mistral Large on Bedrock Supported!** 🎉🎉🎉
-<img width="1440" alt="image" src="https://github.com/davidshtian/Bedrock-ChatBot-with-LangChain-and-Streamlit/assets/14228056/cf008fa9-2dd2-4aef-829a-c8a3473c0555">
 
 # 24/03/14 Updates
 **NEW! Claude 3 Haiku on Bedrock Supported! Let's Go Faster!** 🎉🎉🎉
