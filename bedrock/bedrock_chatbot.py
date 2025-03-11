@@ -1,10 +1,10 @@
 import random
 from io import BytesIO
 from typing import List, Tuple, Union, Dict, Any
+import re
 
 import streamlit as st
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableLambda, RunnableWithMessageHistory
+from langchain_core.runnables import RunnableWithMessageHistory
 from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_community.utilities import SerpAPIWrapper
@@ -26,6 +26,7 @@ load_dotenv()
 INIT_MESSAGE = {
     "role": "assistant",
     "content": "Hi! I'm your AI Bot on Bedrock. How may I help you?",
+    "llm_content": "Hi! I'm your AI Bot on Bedrock. How may I help you?"
 }
 
 
@@ -123,20 +124,24 @@ def render_sidebar() -> Tuple[Dict, int, str]:
     return model_kwargs, system_prompt, web_local
 
 
-def extract_reasoning_and_text(input: Any) -> str:
+def extract_reasoning_and_text(input: Any) -> Union[Dict[str, str], str]:
     """
-    Extracts reasoning content and normal text from the LLM's output and combines them into a single string.
-    Wraps the reasoning content in triple backticks like a code block.
-    Handles both streaming and non-streaming inputs.
+    Extracts reasoning content and normal text from the LLM's output.
+    For streaming, yields chunks directly. For non-streaming, returns a dictionary.
 
     Args:
         input: The LLM's output (e.g., an AIMessage object with a content attribute)
 
     Returns:
-        A string with reasoning (in code block) followed by normal text, or yields chunks for streaming
+        For streaming: yields text chunks
+        For non-streaming: Dict with 'display_text' and 'llm_text'
     """
     if hasattr(input, "__iter__") and not isinstance(input, (str, dict)):
+        # For streaming responses
         in_reasoning_block = False
+        current_text = ""
+        display_text = ""
+        
         for chunk in input:
             content = chunk.content if hasattr(chunk, "content") else chunk
             if isinstance(content, list):
@@ -145,34 +150,87 @@ def extract_reasoning_and_text(input: Any) -> str:
                         reasoning_text = item.get("reasoning_content", {}).get("text", "")
                         if reasoning_text:
                             if not in_reasoning_block:
+                                display_text += "```\n"
                                 yield "```\n"
                                 in_reasoning_block = True
+                            display_text += reasoning_text
                             yield reasoning_text
                     elif item.get("type") == "text" and (text := item.get("text")):
                         if in_reasoning_block:
+                            display_text += "\n```\n"
                             yield "\n```\n"
                             in_reasoning_block = False
+                        display_text += text
+                        current_text += text
                         yield text
             else:
                 if in_reasoning_block:
+                    display_text += "\n```\n"
                     yield "\n```\n"
                     in_reasoning_block = False
+                display_text += content
+                current_text += content
                 yield content
+                
         if in_reasoning_block:
+            display_text += "\n```"
             yield "\n```"
+            
+        # Store the clean text for LLM history
+        st.session_state["current_llm_text"] = current_text
+        st.session_state["current_display_text"] = display_text
         return
 
+    # For non-streaming responses
     content = input.content if hasattr(input, "content") else input
     if isinstance(content, list):
-        reasoning = next((f"```\n{item['reasoning_content']['text']}\n```" 
-                        for item in content 
-                        if item.get("type") == "reasoning_content" 
-                        and item.get("reasoning_content", {}).get("text")), "")
-        normal_text = next((item.get("text", "") 
-                          for item in content 
-                          if item.get("type") == "text"), "")
-        return f"{reasoning}\n\n{normal_text}" if reasoning else normal_text
-    return content
+        reasoning = ""
+        for item in content:
+            if item.get("type") == "reasoning_content" and item.get("reasoning_content", {}).get("text"):
+                reasoning += f"```\n{item['reasoning_content']['text']}\n```\n\n"
+        
+        normal_text = next(
+            (item.get("text", "") for item in content if item.get("type") == "text"), ""
+        )
+        
+        display_text = f"{reasoning}{normal_text}" if reasoning else normal_text
+        return {"display_text": display_text, "llm_text": normal_text}
+    
+    return {"display_text": content, "llm_text": content}
+
+
+def store_message(role: str, content: Union[str, Dict[str, str]], images: List[str] = None) -> None:
+    """
+    Store a message in the session state for display purposes.
+    
+    Args:
+        role: The role of the message sender ('user' or 'assistant')
+        content: Either a string or a dict with 'display_text' and 'llm_text'
+        images: Optional list of image IDs
+    """
+    message = {"role": role}
+    
+    if isinstance(content, dict) and "display_text" in content and "llm_text" in content:
+        message["content"] = content["display_text"]
+        message["llm_content"] = content["llm_text"]
+    elif role == "assistant" and "current_display_text" in st.session_state:
+        # For streaming assistant responses
+        message["content"] = st.session_state["current_display_text"]
+        if "current_llm_text" in st.session_state:
+            message["llm_content"] = st.session_state["current_llm_text"]
+    else:
+        message["content"] = content
+        # For user messages, clean any code blocks to be safe
+        if role == "user":
+            message["llm_content"] = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
+        else:
+            message["llm_content"] = content
+        
+    if images:
+        message["images"] = images
+        
+    st.session_state.messages.append(message)
+
 
 def init_runnablewithmessagehistory(
     system_prompt: str, chat_model: ChatModel
@@ -180,21 +238,36 @@ def init_runnablewithmessagehistory(
     """
     Initialize the RunnableWithMessageHistory with the given parameters.
     """
+    # Use a standard message history
     msgs = StreamlitChatMessageHistory()
-    conversation = RunnableWithMessageHistory(
-        ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            MessagesPlaceholder(variable_name="chat_history"),
-            MessagesPlaceholder(variable_name="query"),
-        ]) | chat_model.llm,
-        lambda session_id: msgs,
-        input_messages_key="query",
-        history_messages_key="chat_history"
-    ) | extract_reasoning_and_text
+    # Clear any existing messages
+    msgs.clear()
+    
+    # Create the conversation chain
+    conversation = (
+        RunnableWithMessageHistory(
+            ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_prompt),
+                    MessagesPlaceholder(variable_name="chat_history"),
+                    MessagesPlaceholder(variable_name="query"),
+                ]
+            )
+            | chat_model.llm,
+            lambda session_id: msgs,
+            input_messages_key="query",
+            history_messages_key="chat_history",
+        )
+        | extract_reasoning_and_text
+    )
 
-    # Store LLM generated responses
+    # Store LLM generated responses for display
     if "messages" not in st.session_state:
         st.session_state.messages = [INIT_MESSAGE]
+    if "current_llm_text" not in st.session_state:
+        st.session_state.current_llm_text = ""
+    if "msgs" not in st.session_state:
+        st.session_state.msgs = msgs
 
     return conversation
 
@@ -205,19 +278,62 @@ def generate_response(
     """
     Generate a response from the conversation chain with the given input.
     """
-    return st.write_stream(conversation.stream(
-        {"query": input}, 
-        config={"configurable": {"session_id": "streamlit_chat"}}
-    ))
+    # Get the message history
+    msgs = st.session_state.msgs
+    
+    # Clear the standard history to replace with our cleaned one
+    msgs.clear()
+    
+    # Add all previous messages to history with reasoning removed from assistant responses
+    # But exclude the current user message which will be sent as "query"
+    for i, msg in enumerate(st.session_state.messages[:-1]):  # Skip the last message (current user prompt)
+        if i == 0:  # Skip the initial greeting
+            continue
+            
+        if msg["role"] == "user":
+            # Keep user messages as they are
+            msgs.add_user_message(msg["content"])
+        elif msg["role"] == "assistant":
+            # Remove reasoning blocks from assistant messages
+            clean_msg = re.sub(r'```.*?```', '', msg["content"], flags=re.DOTALL)
+            clean_msg = clean_msg.strip()
+            if clean_msg:  # Only add if there's content after removal
+                msgs.add_ai_message(clean_msg)
+    
+    # Format input as a chat message
+    if isinstance(input, str):
+        formatted_input = [{"role": "user", "content": input}]
+    else:
+        formatted_input = input
+
+    # For streaming responses
+    return st.write_stream(
+        conversation.stream(
+            {"query": formatted_input},
+            config={"configurable": {"session_id": "streamlit_chat"}}
+        )
+    )
 
 
 def new_chat() -> None:
     """
     Reset the chat session and initialize a new RunnableWithMessageHistory.
     """
+    # Clear display messages
     st.session_state["messages"] = [INIT_MESSAGE]
-    st.session_state["langchain_messages"] = []
+    
+    # Clear LangChain message history
+    if "msgs" in st.session_state:
+        st.session_state.msgs.clear()
+    
+    # Reset file uploader
     st.session_state["file_uploader_key"] = random.randint(1, 100)
+    
+    # Clear any other chat-related state
+    if "current_llm_text" in st.session_state:
+        del st.session_state["current_llm_text"]
+    if "current_display_text" in st.session_state:
+        del st.session_state["current_display_text"]
 
 
 def display_chat_messages(
@@ -461,78 +577,21 @@ def main() -> None:
         if message["role"] == "user" and "images" in message and message["images"]
         for image_id in message["images"]
     ]
+
     # Show image in corresponding chat box
     uploaded_file_ids = []
-    if uploaded_files and len(message_images_list) < len(uploaded_files):
-        with st.chat_message("user"):
-            if web_local == "RAG":
-                index_path = "faiss_index"
-                # Add a button to the sidebar to trigger the indexing process
-                if st.sidebar.button("Index Files"):
-                    # Use the index_file function from bedrock_embedder.py to index the uploaded files
-                    vectorstore, docs, combined_embeddings = index_file(
-                        uploaded_files, index_path
-                    )
-                    if docs is None or combined_embeddings is None:
-                        return
-
-                    st.success(
-                        f"{len(uploaded_files)} files indexed. Total documents in index: Total documents in index: {vectorstore.index.ntotal}"
-                    )
-                    # Clear the uploaded files list
-                    uploaded_files = []
-
-                # Allow users to chat with the AI in RAG mode
-                if prompt:
-                    formatted_prompt = web_or_local(prompt, web_local)
-                    st.session_state.messages.append(
-                        {"role": "user", "content": formatted_prompt}
-                    )
-                    st.markdown(formatted_prompt)
-            else:
-                content_files = display_uploaded_files(
-                    uploaded_files, message_images_list, uploaded_file_ids
-                )
-
-                if prompt:
-                    context_text = ""
-                    context_image = []
-                    prompt = web_or_local(prompt, web_local)
-                    for content_file in content_files:
-                        if "image" in content_file.keys():
-                            context_image.append(content_file)
-                        else:
-                            context_text += content_file["text"] + "\n\n"
-
-                    if context_text != "":
-                        prompt_new = f"Here is some context from your uploaded file: \n<context>\n{context_text}</context>\n\n{prompt}"
-                    else:
-                        prompt_new = prompt
-                    formatted_prompt = [{"text": prompt_new}] + context_image
-                    st.session_state.messages.append(
-                        {
-                            "role": "user",
-                            "content": prompt_new,
-                            "images": uploaded_file_ids,
-                        }
-                    )
-                    st.markdown(prompt)
-
-    elif prompt:
+    if prompt:
         formatted_prompt = web_or_local(prompt, web_local)
-        st.session_state.messages.append({"role": "user", "content": formatted_prompt})
+        store_message("user", formatted_prompt)
         with st.chat_message("user"):
             st.markdown(formatted_prompt)
 
-    # Generate a new response if last message is not from assistant
-    if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             response = generate_response(
                 runnable_with_messagehistory,
-                [{"role": "user", "content": formatted_prompt}],
+                formatted_prompt
             )
-        message = {"role": "assistant", "content": response}
-        st.session_state.messages.append(message)
+            store_message("assistant", response)
 
 
 if __name__ == "__main__":

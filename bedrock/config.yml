@@ -1,4 +1,14 @@
 models:
+  DeepSeek R1:
+    model_id: "us.deepseek.r1-v1:0" 
+    input_format: "text"
+    thinking: 1
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 500
+    max_tokens: 32768
+    memory_window: 10
+    max_top_k: 500
   Claude 3.7 Sonnet Reasoning:
     model_id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0" 
     input_format: "multimodal"
