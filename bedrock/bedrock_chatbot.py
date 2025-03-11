@@ -124,105 +124,82 @@ def render_sidebar() -> Tuple[Dict, int, str]:
     return model_kwargs, system_prompt, web_local
 
 
-def extract_reasoning_and_text(input: Any) -> Union[Dict[str, str], str]:
+def extract_reasoning_and_text(input: Any) -> str:
     """
     Extracts reasoning content and normal text from the LLM's output.
-    For streaming, yields chunks directly. For non-streaming, returns a dictionary.
+    Processes streaming responses and yields text chunks.
 
     Args:
-        input: The LLM's output (e.g., an AIMessage object with a content attribute)
+        input: The LLM's output stream
 
     Returns:
-        For streaming: yields text chunks
-        For non-streaming: Dict with 'display_text' and 'llm_text'
+        Yields text chunks for the stream
     """
-    if hasattr(input, "__iter__") and not isinstance(input, (str, dict)):
-        # For streaming responses
-        in_reasoning_block = False
-        current_text = ""
-        display_text = ""
-        
-        for chunk in input:
-            content = chunk.content if hasattr(chunk, "content") else chunk
-            if isinstance(content, list):
-                for item in content:
-                    if item.get("type") == "reasoning_content":
-                        reasoning_text = item.get("reasoning_content", {}).get("text", "")
-                        if reasoning_text:
-                            if not in_reasoning_block:
-                                display_text += "```\n"
-                                yield "```\n"
-                                in_reasoning_block = True
-                            display_text += reasoning_text
-                            yield reasoning_text
-                    elif item.get("type") == "text" and (text := item.get("text")):
-                        if in_reasoning_block:
-                            display_text += "\n```\n"
-                            yield "\n```\n"
-                            in_reasoning_block = False
-                        display_text += text
-                        current_text += text
-                        yield text
-            else:
-                if in_reasoning_block:
-                    display_text += "\n```\n"
-                    yield "\n```\n"
-                    in_reasoning_block = False
-                display_text += content
-                current_text += content
-                yield content
-                
-        if in_reasoning_block:
-            display_text += "\n```"
-            yield "\n```"
-            
-        # Store the clean text for LLM history
-        st.session_state["current_llm_text"] = current_text
-        st.session_state["current_display_text"] = display_text
-        return
-
-    # For non-streaming responses
-    content = input.content if hasattr(input, "content") else input
-    if isinstance(content, list):
-        reasoning = ""
-        for item in content:
-            if item.get("type") == "reasoning_content" and item.get("reasoning_content", {}).get("text"):
-                reasoning += f"```\n{item['reasoning_content']['text']}\n```\n\n"
-        
-        normal_text = next(
-            (item.get("text", "") for item in content if item.get("type") == "text"), ""
-        )
-        
-        display_text = f"{reasoning}{normal_text}" if reasoning else normal_text
-        return {"display_text": display_text, "llm_text": normal_text}
+    # For streaming responses
+    in_reasoning_block = False
+    current_text = ""
+    display_text = ""
     
-    return {"display_text": content, "llm_text": content}
+    for chunk in input:
+        content = chunk.content if hasattr(chunk, "content") else chunk
+        if isinstance(content, list):
+            for item in content:
+                if item.get("type") == "reasoning_content":
+                    reasoning_text = item.get("reasoning_content", {}).get("text", "")
+                    if reasoning_text:
+                        if not in_reasoning_block:
+                            display_text += "```thinking\n"
+                            yield "```thinking\n"
+                            in_reasoning_block = True
+                        display_text += reasoning_text
+                        yield reasoning_text
+                elif item.get("type") == "text" and (text := item.get("text")):
+                    if in_reasoning_block:
+                        display_text += "\n```\n"
+                        yield "\n```\n"
+                        in_reasoning_block = False
+                    display_text += text
+                    current_text += text
+                    yield text
+        else:
+            if in_reasoning_block:
+                display_text += "\n```\n"
+                yield "\n```\n"
+                in_reasoning_block = False
+            display_text += content
+            current_text += content
+            yield content
+            
+    if in_reasoning_block:
+        display_text += "\n```"
+        yield "\n```"
+        
+    # Store the clean text for LLM history
+    st.session_state["current_llm_text"] = current_text
+    st.session_state["current_display_text"] = display_text
 
 
-def store_message(role: str, content: Union[str, Dict[str, str]], images: List[str] = None) -> None:
+def store_message(role: str, content: str, images: List[str] = None) -> None:
     """
     Store a message in the session state for display purposes.
     
     Args:
         role: The role of the message sender ('user' or 'assistant')
-        content: Either a string or a dict with 'display_text' and 'llm_text'
+        content: The message content
         images: Optional list of image IDs
     """
     message = {"role": role}
     
-    if isinstance(content, dict) and "display_text" in content and "llm_text" in content:
-        message["content"] = content["display_text"]
-        message["llm_content"] = content["llm_text"]
-    elif role == "assistant" and "current_display_text" in st.session_state:
-        # For streaming assistant responses
+    if role == "assistant" and "current_display_text" in st.session_state:
+        # For assistant responses
         message["content"] = st.session_state["current_display_text"]
         if "current_llm_text" in st.session_state:
             message["llm_content"] = st.session_state["current_llm_text"]
     else:
         message["content"] = content
-        # For user messages, clean any code blocks to be safe
+        # For user messages, clean any thinking blocks to be safe
         if role == "user":
-            message["llm_content"] = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
+            message["llm_content"] = re.sub(r'```thinking.*?```', '', content, flags=re.DOTALL)
         else:
             message["llm_content"] = content
         
@@ -294,15 +271,17 @@ def generate_response(
             # Keep user messages as they are
             msgs.add_user_message(msg["content"])
         elif msg["role"] == "assistant":
-            # Remove reasoning blocks from assistant messages
-            clean_msg = re.sub(r'```.*?```', '', msg["content"], flags=re.DOTALL)
+            # Remove thinking blocks from assistant messages
+            clean_msg = re.sub(r'```thinking.*?```', '', msg["content"], flags=re.DOTALL)
             clean_msg = clean_msg.strip()
             if clean_msg:  # Only add if there's content after removal
                 msgs.add_ai_message(clean_msg)
     
     # Format input as a chat message
     if isinstance(input, str):
-        formatted_input = [{"role": "user", "content": input}]
+        # Remove any thinking blocks
+        clean_input = re.sub(r'```thinking.*?```', '', input, flags=re.DOTALL)
+        formatted_input = [{"role": "user", "content": clean_input}]
     else:
         formatted_input = input
 
@@ -578,19 +557,22 @@ def main() -> None:
         for image_id in message["images"]
     ]
 
-    # Show image in corresponding chat box
-    uploaded_file_ids = []
+    # Process the user prompt
     if prompt:
         formatted_prompt = web_or_local(prompt, web_local)
+        
+        # Store and display user message
         store_message("user", formatted_prompt)
         with st.chat_message("user"):
             st.markdown(formatted_prompt)
 
+        # Generate and display assistant response
         with st.chat_message("assistant"):
             response = generate_response(
                 runnable_with_messagehistory,
                 formatted_prompt
             )
+            # Store the assistant message (content is already captured in state during streaming)
             store_message("assistant", response)
 
 
