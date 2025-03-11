@@ -4,7 +4,11 @@ A simple and clear example for implement a chatbot with Bedrock + LangChain + St
 pip install -r requirements.txt
 streamlit run bedrock/bedrock_chatbot.py
 ```
-# 25/03/06 Updates
+# 25/03/11 Updates
+## DeepSeek R1 ✅ 🎉🎉🎉
+
+Now DeepSeek R1 is supported~
+
 ## Thinking/Reasoning Feature
 <img width="1425" alt="image" src="https://github.com/user-attachments/assets/d2d2d0a8-1b3e-46ee-9705-87ba66573b00" />
 
