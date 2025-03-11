@@ -1,4 +1,4 @@
-# Bedrock ChatBot with LangChain and Streamlit (New Converse API) 💬 
+<img width="1896" alt="image" src="https://github.com/user-attachments/assets/834c3696-593e-4751-9648-7cc26103f885" /># Bedrock ChatBot with LangChain and Streamlit (New Converse API) 💬 
 A simple and clear example for implement a chatbot with Bedrock + LangChain + Streamlit. Know-how and build whatever you want. Just install and run the code~ 🚀
 ```
 pip install -r requirements.txt
@@ -10,7 +10,8 @@ streamlit run bedrock/bedrock_chatbot.py
 Now DeepSeek R1 is supported~
 
 ## Thinking/Reasoning Feature
-<img width="1425" alt="image" src="https://github.com/user-attachments/assets/d2d2d0a8-1b3e-46ee-9705-87ba66573b00" />
+<img width="1896" alt="image" src="https://github.com/user-attachments/assets/157796ca-2b35-47c5-b2b7-cc8ae336dc98" />
+<img width="1896" alt="image" src="https://github.com/user-attachments/assets/0cd886a3-7240-4189-bdd8-5d4e9dcde7df" />
 
 > Note: if you're going to use web search function, add your SERPAPI key and AWS region to bedrock/.env file~
 
