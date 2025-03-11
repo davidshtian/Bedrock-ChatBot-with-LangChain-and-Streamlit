@@ -1,4 +1,4 @@
-<img width="1896" alt="image" src="https://github.com/user-attachments/assets/834c3696-593e-4751-9648-7cc26103f885" /># Bedrock ChatBot with LangChain and Streamlit (New Converse API) 💬 
+# Bedrock ChatBot with LangChain and Streamlit (New Converse API) 💬 
 A simple and clear example for implement a chatbot with Bedrock + LangChain + Streamlit. Know-how and build whatever you want. Just install and run the code~ 🚀
 ```
 pip install -r requirements.txt
